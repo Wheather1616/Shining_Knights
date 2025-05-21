@@ -72,7 +72,7 @@ def read_docx_table_to_df(docx_path):
     return df
 
 def save_to_monthly_workbook(df, date, output_folder):
-    from openpyxl import Workbook
+    from openpyxl import load_workbook
 
     month_str = date.strftime("%B")
     day_num = date.day
@@ -83,17 +83,12 @@ def save_to_monthly_workbook(df, date, output_folder):
     excel_path = os.path.join(output_folder, f"{month_str}.xlsx")
 
     if os.path.exists(excel_path):
-        book = load_workbook(excel_path)
-
-        if day_sheet in book.sheetnames:
-            del book[day_sheet]  # remove existing sheet
-
-        # Save before opening with ExcelWriter
-        book.save(excel_path)
-
+        # Open existing file and add a new sheet
         with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
+            writer.book = load_workbook(excel_path)
             df.to_excel(writer, sheet_name=day_sheet, index=False)
     else:
+        # Create a new file with the sheet
         with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name=day_sheet, index=False)
 
