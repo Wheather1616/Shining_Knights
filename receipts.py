@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox
 # === CONFIG ===
 sheet_name  = 'Sheet1'        # Change if needed
 date_column = 'Date'          # Must match column in your spreadsheet
-output_dir  = os.path.expanduser("~/Desktop/Projects/Receipts")
+output_dir = r"C:\Users\reception\OneDrive - Coogee Legion Ex-Services Club\Documents\Receipts"
 
 class ExcelAnalyserApp(tk.Tk):
     def __init__(self):
