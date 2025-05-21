@@ -18,11 +18,11 @@ def day_suffix(day: int) -> str:
 
 def extract_date(filename: str):
     # Matches DD.MM.YYYY, e.g. 21.05.2025
-    m = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', filename)
+    m = re.search(r'(\d{2}\.\d{2}\.\d{4})', filename)
     if not m:
         return None
     try:
-        return datetime.strptime(m.group(0), "%d.%m.%Y").date()
+        return datetime.strptime(m.group(1), "%d.%m.%Y").date()
     except ValueError:
         return None
 
@@ -35,7 +35,7 @@ def read_docx_table_to_df(docx_path):
     table = doc.tables[0]
     headers = [cell.text.strip() for cell in table.rows[0].cells]
 
-    # Map expected columns to table columns by case-insensitive match
+    # Map expected columns to actual columns by case-insensitive match
     col_indices = {}
     for expected_col in EXPECTED_COLUMNS:
         for i, header in enumerate(headers):
@@ -57,23 +57,21 @@ def read_docx_table_to_df(docx_path):
 
     df = pd.DataFrame(data, columns=EXPECTED_COLUMNS)
 
-    # Clean Payment amount column
-    df['Payment amount'] = df['Payment amount'].str.replace('[$,]', '', regex=True)
-
-    # Drop rows where payment amount is not a valid float
-    valid_rows = pd.to_numeric(df['Payment amount'], errors='coerce')
-    invalid_count = valid_rows.isna().sum()
-    df = df[valid_rows.notna()]
-    df['Payment amount'] = valid_rows.dropna().astype(float)
-
-    if invalid_count > 0:
-        print(f"⚠️ {invalid_count} row(s) with invalid 'Payment amount' in '{docx_path}' skipped.")
+    # Clean 'Payment amount' safely
+    df['Payment amount'] = (
+        df['Payment amount']
+        .str.replace('[$,]', '', regex=True)
+        .str.strip()
+    )
+    df['Payment amount'] = pd.to_numeric(df['Payment amount'], errors='coerce')
+    bad_rows = df[df['Payment amount'].isna()]
+    if not bad_rows.empty:
+        print(f"⚠️ {len(bad_rows)} row(s) with invalid 'Payment amount' in '{docx_path}' skipped.")
+    df = df.dropna(subset=['Payment amount'])
 
     return df
 
 def save_to_monthly_workbook(df, date, output_folder):
-    from openpyxl import load_workbook
-
     month_str = date.strftime("%B")
     day_num = date.day
     suffix = day_suffix(day_num)
@@ -83,12 +81,11 @@ def save_to_monthly_workbook(df, date, output_folder):
     excel_path = os.path.join(output_folder, f"{month_str}.xlsx")
 
     if os.path.exists(excel_path):
-        # Open existing file and add a new sheet
+        # Append to existing file
         with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
-            writer.book = load_workbook(excel_path)
             df.to_excel(writer, sheet_name=day_sheet, index=False)
     else:
-        # Create a new file with the sheet
+        # Create new file
         with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name=day_sheet, index=False)
 
