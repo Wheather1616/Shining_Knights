@@ -86,8 +86,7 @@ def save_to_monthly_workbook(df, date, output_folder):
         if day_sheet in book.sheetnames:
             std = book[day_sheet]
             book.remove(std)
-        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
-            writer.book = book
+        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a', engine_kwargs={'book': book}) as writer:
             df.to_excel(writer, sheet_name=day_sheet, index=False)
     else:
         with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
