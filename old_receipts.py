@@ -5,7 +5,7 @@ import pandas as pd
 from docx import Document
 from openpyxl import load_workbook
 
-# CONFIG - change these paths as needed
+# CONFIG - change these paths
 INPUT_FOLDER = r"C:\Users\reception\OneDrive - Coogee Legion Ex-Services Club\Documents\OldWordFiles"
 OUTPUT_FOLDER = r"C:\Users\reception\OneDrive - Coogee Legion Ex-Services Club\Documents\Receipts"
 
@@ -17,11 +17,12 @@ def day_suffix(day: int) -> str:
     return {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
 
 def extract_date(filename: str):
-    m = re.search(r'(\d{2}\.\d{2}\.\d{4})', filename)
+    # Matches DD.MM.YYYY, e.g. 21.05.2025
+    m = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', filename)
     if not m:
         return None
     try:
-        return datetime.strptime(m.group(1), "%d.%m.%Y").date()
+        return datetime.strptime(m.group(0), "%d.%m.%Y").date()
     except ValueError:
         return None
 
@@ -34,7 +35,7 @@ def read_docx_table_to_df(docx_path):
     table = doc.tables[0]
     headers = [cell.text.strip() for cell in table.rows[0].cells]
 
-    # Map expected columns to actual columns
+    # Map expected columns to table columns by case-insensitive match
     col_indices = {}
     for expected_col in EXPECTED_COLUMNS:
         for i, header in enumerate(headers):
@@ -56,23 +57,23 @@ def read_docx_table_to_df(docx_path):
 
     df = pd.DataFrame(data, columns=EXPECTED_COLUMNS)
 
-    # Clean 'Payment amount' column
-    df['Payment amount'] = (
-        df['Payment amount']
-        .str.replace('[$,]', '', regex=True)
-        .str.strip()
-    )
+    # Clean Payment amount column
+    df['Payment amount'] = df['Payment amount'].str.replace('[$,]', '', regex=True)
 
-    # Convert to float, log & drop bad rows
-    df['Payment amount'] = pd.to_numeric(df['Payment amount'], errors='coerce')
-    bad_rows = df[df['Payment amount'].isna()]
-    if not bad_rows.empty:
-        print(f"⚠️ {len(bad_rows)} row(s) with invalid 'Payment amount' in '{docx_path}' skipped.")
-    df = df.dropna(subset=['Payment amount'])
+    # Drop rows where payment amount is not a valid float
+    valid_rows = pd.to_numeric(df['Payment amount'], errors='coerce')
+    invalid_count = valid_rows.isna().sum()
+    df = df[valid_rows.notna()]
+    df['Payment amount'] = valid_rows.dropna().astype(float)
+
+    if invalid_count > 0:
+        print(f"⚠️ {invalid_count} row(s) with invalid 'Payment amount' in '{docx_path}' skipped.")
 
     return df
 
 def save_to_monthly_workbook(df, date, output_folder):
+    from openpyxl import Workbook
+
     month_str = date.strftime("%B")
     day_num = date.day
     suffix = day_suffix(day_num)
@@ -83,10 +84,14 @@ def save_to_monthly_workbook(df, date, output_folder):
 
     if os.path.exists(excel_path):
         book = load_workbook(excel_path)
+
         if day_sheet in book.sheetnames:
-            std = book[day_sheet]
-            book.remove(std)
-        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a', engine_kwargs={'book': book}) as writer:
+            del book[day_sheet]  # remove existing sheet
+
+        # Save before opening with ExcelWriter
+        book.save(excel_path)
+
+        with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
             df.to_excel(writer, sheet_name=day_sheet, index=False)
     else:
         with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
@@ -109,10 +114,11 @@ def main():
 
         df = read_docx_table_to_df(path)
         if df is None or df.empty:
-            print(f"⚠️ Skipping '{file}': failed to read valid table data.")
+            print(f"⚠️ Skipping '{file}': failed to read valid data.")
             continue
 
         save_to_monthly_workbook(df, date, OUTPUT_FOLDER)
 
 if __name__ == "__main__":
     main()
+
