@@ -17,9 +17,10 @@ def create_monthly_workbooks(year, output_dir):
         num_days = calendar.monthrange(year, month)[1]
         
         for day in range(1, num_days + 1):
-            date_str = f"{day:02d}/{month:02d}/{year}"
-            ws = wb.create_sheet(title=date_str)
-            ws["A1"] = f"Sheet for {date_str}"  # Optional
+            # Use "-" instead of "/" to avoid invalid sheet name
+            sheet_name = f"{day:02d}-{month:02d}-{year}"
+            ws = wb.create_sheet(title=sheet_name)
+            ws["A1"] = f"Sheet for {sheet_name}"
 
         file_name = f"{month_name}_{year}.xlsx"
         file_path = os.path.join(output_dir, file_name)
@@ -28,5 +29,5 @@ def create_monthly_workbooks(year, output_dir):
 
 if __name__ == "__main__":
     year = 2025
-    output_directory = r"C:\Users\reception\OneDrive - Coogee Legion Ex-Services Club\Documents\Receipts"  # Replace with your desired path
+    output_directory = r"C:\Users\reception\OneDrive - Coogee Legion Ex-Services Club\Apps\x"  # Adjust path if needed
     create_monthly_workbooks(year, output_directory)
