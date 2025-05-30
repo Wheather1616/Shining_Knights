@@ -28,5 +28,5 @@ def create_monthly_workbooks(year, output_dir):
 
 if __name__ == "__main__":
     year = 2025
-    output_directory = r"C:\Users\receiption\OneDrive - Coogee Legion Club Ex-Services Club\Documents\Receipts"  # Replace with your desired path
+    output_directory = r"C:\Users\reception\OneDrive - Coogee Legion Ex-Services Club\Documents\Receipts"  # Replace with your desired path
     create_monthly_workbooks(year, output_directory)
