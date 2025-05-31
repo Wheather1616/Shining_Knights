@@ -14,8 +14,9 @@ DEFAULT_OUTPUT_DB = os.path.join(DEFAULT_INPUT_DIR, "transactions.db")
 
 def extract_and_insert(excel_dir: str, db_path: str):
     """
-    Scan `excel_dir` for Excel files, parse sheets with expected columns,
-    drop & recreate `transactions` table, and save data into SQLite.
+    Recursively scan `excel_dir` and its subdirectories for Excel files,
+    parse sheets with expected columns, drop & recreate `transactions` table,
+    and save data into SQLite.
     """
     expected = {"description", "payment amount", "payment type", "member no", "receipt no", "notes"}
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -36,37 +37,39 @@ def extract_and_insert(excel_dir: str, db_path: str):
             """
         )
 
-        for fname in os.listdir(excel_dir):
-            if not fname.lower().endswith(('.xlsx', '.xlsm', '.xltx', '.xltm')):
-                continue
-            fp = os.path.join(excel_dir, fname)
-            try:
-                wb = load_workbook(fp, data_only=True)
-            except Exception as e:
-                print(f"Skipping {fname}: {e}")
-                continue
-
-            for sheet_name in wb.sheetnames:
-                ws = wb[sheet_name]
-                header = list(next(ws.iter_rows(values_only=True)))
-                cols = [re.sub(r"[\W_]+", " ", str(h).strip().lower()).strip() for h in header]
-                if not expected.issubset(cols):
+        # Walk through directory tree
+        for root, _, files in os.walk(excel_dir):
+            for fname in files:
+                if not fname.lower().endswith(('.xlsx', '.xlsm', '.xltx', '.xltm')):
+                    continue
+                fp = os.path.join(root, fname)
+                try:
+                    wb = load_workbook(fp, data_only=True)
+                except Exception as e:
+                    print(f"Skipping {fp}: {e}")
                     continue
 
-                db_cols = [c.replace(' ', '_') for c in cols] + ['transaction_date']
-                placeholders = ",".join("?" for _ in db_cols)
-                sql = f"INSERT INTO transactions ({','.join(db_cols)}) VALUES ({placeholders})"
+                for sheet_name in wb.sheetnames:
+                    ws = wb[sheet_name]
+                    header = list(next(ws.iter_rows(values_only=True)))
+                    cols = [re.sub(r"[\W_]+", " ", str(h).strip().lower()).strip() for h in header]
+                    if not expected.issubset(cols):
+                        continue
 
-                for row in ws.iter_rows(min_row=2, values_only=True):
-                    row_dict = dict(zip(cols, row))
-                    try:
-                        date_obj = parse(str(sheet_name), dayfirst=True)
-                        date_str = date_obj.strftime('%Y-%m-%d')
-                    except Exception:
-                        date_str = sheet_name
+                    db_cols = [c.replace(' ', '_') for c in cols] + ['transaction_date']
+                    placeholders = ",".join("?" for _ in db_cols)
+                    sql = f"INSERT INTO transactions ({','.join(db_cols)}) VALUES ({placeholders})"
 
-                    values = [row_dict[c] for c in cols] + [date_str]
-                    conn.execute(sql, values)
+                    for row in ws.iter_rows(min_row=2, values_only=True):
+                        row_dict = dict(zip(cols, row))
+                        try:
+                            date_obj = parse(str(sheet_name), dayfirst=True)
+                            date_str = date_obj.strftime('%Y-%m-%d')
+                        except Exception:
+                            date_str = sheet_name
+
+                        values = [row_dict[c] for c in cols] + [date_str]
+                        conn.execute(sql, values)
         conn.commit()
     print(f"Recreated DB at: {db_path}")
 
