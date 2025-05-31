@@ -5,8 +5,11 @@ from tkinter import ttk, filedialog, messagebox
 from openpyxl import load_workbook
 
 # ─────── Configuration ───────
-DEFAULT_INPUT_DIR = os.path.expanduser("~/Downloads/Receipts")
+# ─────── Configuration ───────
+DEFAULT_INPUT_DIR = r"C:\Users\reception\OneDrive - Coogee Legion Ex-Services Club\Documents\Receipts"
 DEFAULT_OUTPUT_DB = os.path.join(DEFAULT_INPUT_DIR, "transactions.db")
+# ───────────────────────────────
+
 # ───────────────────────────────
 
 def extract_and_insert(excel_dir: str, db_path: str):
