@@ -1,0 +1,14 @@
+def app_support_dir() -> Path:
+    """Return a platform-appropriate application support folder."""
+    home = Path.home()
+
+    if os.name == "nt":
+        base = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
+        if base:
+            return Path(base) / APP_NAME
+        return home / f".{APP_NAME.lower()}"
+
+    if os.name == "posix" and (home / "Library").exists():
+        return home / "Library" / "Application Support" / APP_NAME
+
+    return home / f".{APP_NAME.lower()}"
