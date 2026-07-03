@@ -12,21 +12,10 @@ APP_NAME = "ReceiptFlow"
 
 
 def app_support_dir() -> Path:
-    """Return a platform-appropriate application support folder."""
+    """Return a macOS-friendly application support folder, with sane fallbacks."""
     home = Path.home()
-
-    # Windows: keep app data in the normal per-user roaming profile.
-    if os.name == "nt":
-        base = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA")
-        if base:
-            return Path(base) / APP_NAME
-        return home / f".{APP_NAME.lower()}"
-
-    # macOS: use Application Support when available.
     if os.name == "posix" and (home / "Library").exists():
         return home / "Library" / "Application Support" / APP_NAME
-
-    # Linux/other fallback.
     return home / f".{APP_NAME.lower()}"
 
 
@@ -77,10 +66,13 @@ CORE_FIELD_KEYS = {
 DEFAULT_FIELDS = [
     FieldDefinition("receipt_no", "Receipt No", "text", True, True, True),
     FieldDefinition("transaction_date", "Date", "date", True, True, True),
-    FieldDefinition("name", "Name / Customer", "text", False, True, True),
-    FieldDefinition("amount", "Amount", "currency", True, True, True),
-    FieldDefinition("payment_type", "Payment Type", "dropdown", False, True, True, ["Card", "Cash", "Bank Transfer", "Other"]),
-    FieldDefinition("member_no", "Member No", "text", False, True, True),
+    # Kept as a configurable/custom field so the current database schema does not need a migration.
+    # It is searchable, browseable and exported because it is included in settings.fields.
+    FieldDefinition("description", "Description", "text", True, True, True),
+    FieldDefinition("amount", "Payment Amount", "currency", True, True, True),
+    FieldDefinition("payment_type", "Payment Type", "dropdown", True, True, True, ["Cash", "EFT", "Card", "Bank Transfer", "Other"]),
+    FieldDefinition("member_no", "Member No", "text", True, True, True),
+    FieldDefinition("name", "Name", "text", False, True, True),
     FieldDefinition("notes", "Notes", "textarea", False, True, False),
 ]
 

@@ -30,8 +30,9 @@ class ImportResult:
 FIELD_ALIASES: dict[str, set[str]] = {
     "receipt_no": {"receipt no", "receipt number", "receipt", "receipt_no", "receiptno"},
     "transaction_date": {"date", "transaction date", "payment date", "transaction_date"},
-    "name": {"name", "customer", "customer name", "description", "member name"},
-    "amount": {"amount", "payment amount", "total", "value", "payment_amount"},
+    "description": {"description", "desc", "details", "item", "transaction description"},
+    "name": {"name", "customer", "customer name", "member name"},
+    "amount": {"amount", "payment amount", "payment_amount", "total", "value"},
     "payment_type": {"payment type", "method", "payment method", "type", "payment_type"},
     "member_no": {"member no", "member number", "member", "member_no", "memberno"},
     "notes": {"notes", "note", "comments", "comment"},
@@ -106,6 +107,26 @@ def has_meaningful_data(record: ReceiptRecord) -> bool:
     return any([record.receipt_no, record.name, record.amount is not None, record.member_no, record.notes, record.custom_fields])
 
 
+def record_value(record: ReceiptRecord, field_key: str) -> Any:
+    if field_key in CORE_FIELD_KEYS:
+        return getattr(record, field_key, "")
+    return (record.custom_fields or {}).get(field_key, "")
+
+
+def missing_required_fields(record: ReceiptRecord, fields: list[FieldDefinition]) -> list[str]:
+    missing: list[str] = []
+    for field_def in fields:
+        if not field_def.required:
+            continue
+        value = record_value(record, field_def.key)
+        if field_def.key == "amount":
+            if value is None:
+                missing.append(field_def.label)
+        elif str(value or "").strip() == "":
+            missing.append(field_def.label)
+    return missing
+
+
 def import_csv(path: Path, db: ReceiptDatabase, fields: list[FieldDefinition]) -> ImportResult:
     result = ImportResult(errors=[])
     with Path(path).open("r", newline="", encoding="utf-8-sig") as f:
@@ -120,6 +141,11 @@ def import_csv(path: Path, db: ReceiptDatabase, fields: list[FieldDefinition]) -
                 record = row_to_record(row, mapping, fields, f"csv:{Path(path).name}")
                 if not has_meaningful_data(record):
                     result.skipped += 1
+                    continue
+                missing = missing_required_fields(record, fields)
+                if missing:
+                    result.skipped += 1
+                    result.add_error(f"Row {row_number}: missing required field(s): {', '.join(missing)}")
                     continue
                 db.upsert_receipt(record)
                 result.imported += 1
@@ -147,6 +173,11 @@ def import_excel(path: Path, db: ReceiptDatabase, fields: list[FieldDefinition])
                 record = row_to_record(list(raw_row), mapping, fields, f"excel:{Path(path).name}:{sheet_name}", sheet_name)
                 if not has_meaningful_data(record):
                     result.skipped += 1
+                    continue
+                missing = missing_required_fields(record, fields)
+                if missing:
+                    result.skipped += 1
+                    result.add_error(f"Sheet {sheet_name}, row {row_number}: missing required field(s): {', '.join(missing)}")
                     continue
                 db.upsert_receipt(record)
                 result.imported += 1
@@ -178,11 +209,19 @@ def mapping_preview(path: Path, fields: list[FieldDefinition]) -> dict[str, Any]
             sample_rows = [row for _, row in zip(range(5), reader)]
     else:
         workbook = load_workbook(path, read_only=True, data_only=True)
-        worksheet = workbook[workbook.sheetnames[0]]
-        rows = list(worksheet.iter_rows(values_only=True, max_row=6))
-        if rows:
-            headers = list(rows[0])
-            sample_rows = [list(row) for row in rows[1:]]
+        # Use the first sheet that contains real data, not just a header row.
+        for sheet_name in workbook.sheetnames:
+            worksheet = workbook[sheet_name]
+            rows = list(worksheet.iter_rows(values_only=True, max_row=10))
+            if not rows:
+                continue
+            candidate_headers = list(rows[0])
+            candidate_sample = [list(row) for row in rows[1:] if any(cell not in {None, ""} for cell in row)]
+            if candidate_sample or not headers:
+                headers = candidate_headers
+                sample_rows = candidate_sample[:5]
+                if candidate_sample:
+                    break
     mapping = infer_mapping(headers, fields)
     return {
         "headers": [str(h or "") for h in headers],
