@@ -30,9 +30,9 @@ class ImportResult:
 FIELD_ALIASES: dict[str, set[str]] = {
     "receipt_no": {"receipt no", "receipt number", "receipt", "receipt_no", "receiptno"},
     "transaction_date": {"date", "transaction date", "payment date", "transaction_date"},
-    "description": {"description", "desc", "details", "item", "transaction description"},
     "name": {"name", "customer", "customer name", "member name"},
-    "amount": {"amount", "payment amount", "payment_amount", "total", "value"},
+    "description": {"description", "desc", "receipt description"},
+    "amount": {"amount", "payment amount", "total", "value", "payment_amount"},
     "payment_type": {"payment type", "method", "payment method", "type", "payment_type"},
     "member_no": {"member no", "member number", "member", "member_no", "memberno"},
     "notes": {"notes", "note", "comments", "comment"},

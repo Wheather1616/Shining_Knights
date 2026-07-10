@@ -48,6 +48,11 @@ from .database import ReceiptDatabase, ReceiptRecord, SORT_OPTIONS
 from .importer import import_file, mapping_preview
 from .styles import APP_QSS
 
+DROPDOWN_OPTIONS_BY_KEY = {
+    "payment_type": ["Eftpos", "Cash", "MOTO", "Direct Debit"],
+    "description": ["Renewal", "New Member", "Replacement Card", "Function"],
+}
+
 class CenteredCheckBox(QWidget):
     """Small wrapper that centres a checkbox inside a table cell.
 
@@ -122,8 +127,9 @@ class ReceiptFormDialog(QDialog):
             return widget
         if field_def.field_type == "dropdown":
             widget = QComboBox()
-            widget.setEditable(True)
-            widget.addItems(field_def.options)
+            widget.setEditable(False)
+            options = DROPDOWN_OPTIONS_BY_KEY.get(field_def.key, field_def.options)
+            widget.addItems(options)
             return widget
         return QLineEdit()
 
@@ -351,8 +357,9 @@ class DesktopReceiptPanel(QWidget):
             widget.setFixedHeight(58)
         elif field_def.field_type == "dropdown":
             widget = QComboBox()
-            widget.setEditable(True)
-            widget.addItems(field_def.options)
+            widget.setEditable(False)
+            options = DROPDOWN_OPTIONS_BY_KEY.get(field_def.key, field_def.options)
+            widget.addItems(options)
         else:
             widget = QLineEdit()
 

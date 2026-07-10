@@ -8,6 +8,10 @@ from typing import Any, Literal
 
 FieldType = Literal["text", "number", "currency", "date", "textarea", "dropdown"]
 
+PAYMENT_TYPE_OPTIONS = ["Eftpos", "Cash", "MOTO", "Direct Debit"]
+
+DESCRIPTION_OPTIONS = ["Renewal", "New Member", "Replacement Card", "Function"]
+
 APP_NAME = "ReceiptFlow"
 
 
@@ -66,9 +70,10 @@ CORE_FIELD_KEYS = {
 DEFAULT_FIELDS = [
     FieldDefinition("receipt_no", "Receipt No", "text", True, True, True),
     FieldDefinition("transaction_date", "Date", "date", True, True, True),
+    FieldDefinition("description", "Description", "dropdown", True, True, True, DESCRIPTION_OPTIONS),
     FieldDefinition("name", "Name / Customer", "text", False, True, True),
     FieldDefinition("amount", "Amount", "currency", True, True, True),
-    FieldDefinition("payment_type", "Payment Type", "dropdown", False, True, True, ["Card", "Cash", "Bank Transfer", "Other"]),
+    FieldDefinition("payment_type", "Payment Type", "dropdown", True, True, True, PAYMENT_TYPE_OPTIONS),
     FieldDefinition("member_no", "Member No", "text", False, True, True),
     FieldDefinition("notes", "Notes", "textarea", False, True, False),
 ]

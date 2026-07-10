@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 FieldType = Literal["text", "number", "currency", "date", "textarea", "dropdown"]
+PAYMENT_TYPE_OPTIONS = ["Eftpos", "Cash", "MOTO", "Direct Debit"]
+
+DESCRIPTION_OPTIONS = ["Renewal", "New Member", "Replacement Card", "Function"]
 
 APP_NAME = "ReceiptFlow"
 
@@ -66,13 +69,11 @@ CORE_FIELD_KEYS = {
 DEFAULT_FIELDS = [
     FieldDefinition("receipt_no", "Receipt No", "text", True, True, True),
     FieldDefinition("transaction_date", "Date", "date", True, True, True),
-    # Kept as a configurable/custom field so the current database schema does not need a migration.
-    # It is searchable, browseable and exported because it is included in settings.fields.
-    FieldDefinition("description", "Description", "text", True, True, True),
-    FieldDefinition("amount", "Payment Amount", "currency", True, True, True),
-    FieldDefinition("payment_type", "Payment Type", "dropdown", True, True, True, ["Cash", "EFT", "Card", "Bank Transfer", "Other"]),
-    FieldDefinition("member_no", "Member No", "text", True, True, True),
-    FieldDefinition("name", "Name", "text", False, True, True),
+    FieldDefinition("description", "Description", "dropdown", True, True, True, DESCRIPTION_OPTIONS),
+    FieldDefinition("name", "Name / Customer", "text", False, True, True),
+    FieldDefinition("amount", "Amount", "currency", True, True, True),
+    FieldDefinition("payment_type", "Payment Type", "dropdown", True, True, True, PAYMENT_TYPE_OPTIONS),
+    FieldDefinition("member_no", "Member No", "text", False, True, True),
     FieldDefinition("notes", "Notes", "textarea", False, True, False),
 ]
 
