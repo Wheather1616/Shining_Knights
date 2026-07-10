@@ -193,15 +193,19 @@ QFrame#DesktopPanel QSpinBox:focus {
     border: 2px solid #285cd4;
 }
 QPushButton#DesktopPrimaryButton {
-    background: #285cd4;
-    color: white;
-    border: 1px solid #285cd4;
+    background: #dbeafe;
+    color: #17202f;
+    border: 1px solid #93c5fd;
     border-radius: 14px;
     padding: 10px 14px;
     font-weight: 900;
 }
 QPushButton#DesktopPrimaryButton:hover {
-    background: #3652da;
+    background: #bfdbfe;
+    border-color: #285cd4;
+}
+QPushButton#DesktopPrimaryButton:pressed {
+    background: #93c5fd;
 }
 QPushButton#DesktopSecondaryButton {
     background: #f3f7ff;

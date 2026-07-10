@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import fields
 import json
 import sys
 from datetime import date
@@ -824,7 +825,8 @@ class ReceiptMainWindow(QMainWindow):
             required = self.fields_table.cellWidget(row, 3).isChecked()
             quick = self.fields_table.cellWidget(row, 4).isChecked()
             browse = self.fields_table.cellWidget(row, 5).isChecked()
-            fields.append(FieldDefinition(key, label, type_combo.currentText(), required, quick, browse))
+            options = DROPDOWN_OPTIONS_BY_KEY.get(key, [])
+            fields.append(FieldDefinition(key, label, type_combo.currentText(), required, quick, browse, options))
 
         self.settings.db_path = Path(self.db_path_input.text()).expanduser()
         self.settings.import_folder = Path(self.import_folder_input.text()).expanduser()

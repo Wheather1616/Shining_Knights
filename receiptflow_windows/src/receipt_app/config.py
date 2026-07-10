@@ -118,8 +118,20 @@ class AppSettings:
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "AppSettings":
         default = AppSettings.default()
-        fields = [FieldDefinition.from_dict(item) for item in data.get("fields", [])]
-        fields = [field_def for field_def in fields if field_def.key and field_def.label]
+        saved_fields = [FieldDefinition.from_dict(item) for item in data.get("fields", [])]
+        saved_fields = [field_def for field_def in saved_fields if field_def.key and field_def.label]
+
+        if saved_fields:
+            saved_by_key = {field_def.key: field_def for field_def in saved_fields}
+            merged_fields = []
+
+            for default_field in DEFAULT_FIELDS:
+                merged_fields.append(saved_by_key.pop(default_field.key, default_field))
+
+            merged_fields.extend(saved_by_key.values())
+            fields = merged_fields
+        else:
+            fields = list(DEFAULT_FIELDS)
         return AppSettings(
             db_path=Path(data.get("db_path") or default.db_path),
             import_folder=Path(data.get("import_folder") or default.import_folder),
