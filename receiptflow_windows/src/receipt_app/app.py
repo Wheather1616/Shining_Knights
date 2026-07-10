@@ -53,6 +53,8 @@ DROPDOWN_OPTIONS_BY_KEY = {
     "payment_type": ["Eftpos", "Cash", "MOTO", "Direct Debit"],
     "description": ["Renewal", "New Member", "Replacement Card", "Function"],
 }
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+APP_LOGO_PATH = ASSETS_DIR / "logo.webp"
 
 class CurrencyLineEdit(QLineEdit):
     """A normal typable money field that formats values like $10.00."""
@@ -579,6 +581,8 @@ class ReceiptMainWindow(QMainWindow):
         self.desktop_panel: DesktopReceiptPanel | None = None
 
         self.setWindowTitle("ReceiptFlow")
+        if APP_LOGO_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_LOGO_PATH)))
         self.resize(1120, 760)
         self.setStyleSheet(APP_QSS)
 
@@ -614,6 +618,9 @@ class ReceiptMainWindow(QMainWindow):
         self.browse_btn = self._side_button("Browse transactions", lambda: self.stack.setCurrentIndex(1))
         self.quick_btn = self._side_button("Quick receipt", self.open_quick_receipt)
         self.desktop_btn = self._side_button("Desktop tab", self.show_desktop_tab)
+        if APP_LOGO_PATH.exists():
+            self.desktop_btn.setIcon(QIcon(str(APP_LOGO_PATH)))
+            self.desktop_btn.setIconSize(QSize(22, 22))
         self.settings_btn = self._side_button("Settings", lambda: self.stack.setCurrentIndex(2))
         for button in [self.home_btn, self.browse_btn, self.quick_btn, self.desktop_btn, self.settings_btn]:
             side_layout.addWidget(button)
