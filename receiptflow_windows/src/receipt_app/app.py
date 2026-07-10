@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import fields
 import json
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +54,81 @@ DROPDOWN_OPTIONS_BY_KEY = {
     "description": ["Renewal", "New Member", "Replacement Card", "Function"],
 }
 
+class CurrencyLineEdit(QLineEdit):
+    """A normal typable money field that formats values like $10.00."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setPlaceholderText("$0.00")
+        self.editingFinished.connect(self.format_as_currency)
+
+    def value(self) -> float:
+        text = self.text().strip()
+        if not text:
+            return 0.0
+
+        cleaned = (
+            text.replace("$", "")
+            .replace(",", "")
+            .strip()
+        )
+
+        if not cleaned:
+            return 0.0
+
+        try:
+            return float(cleaned)
+        except ValueError:
+            return 0.0
+
+    def format_as_currency(self) -> None:
+        text = self.text().strip()
+        if not text:
+            return
+
+        self.setText(f"${self.value():,.2f}")
+
+class DateLineEdit(QLineEdit):
+    """A typable date field that defaults to today and saves as yyyy-mm-dd."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setPlaceholderText("dd/mm/yyyy")
+        self.setText(date.today().strftime("%d/%m/%Y"))
+        self.editingFinished.connect(self.format_date)
+
+    def value(self) -> str:
+        text = self.text().strip()
+        if not text:
+            return ""
+
+        formats = [
+            "%d/%m/%Y",
+            "%d/%m/%y",
+            "%Y-%m-%d",
+            "%d-%m-%Y",
+            "%d-%m-%y",
+        ]
+
+        for fmt in formats:
+            try:
+                parsed = datetime.strptime(text, fmt).date()
+                return parsed.isoformat()
+            except ValueError:
+                continue
+
+        return text
+
+    def format_date(self) -> None:
+        value = self.value()
+        if not value:
+            return
+
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d").date()
+            self.setText(parsed.strftime("%d/%m/%Y"))
+        except ValueError:
+            pass
 class CenteredCheckBox(QWidget):
     """Small wrapper that centres a checkbox inside a table cell.
 
@@ -111,16 +186,14 @@ class ReceiptFormDialog(QDialog):
 
     def _make_widget(self, field_def: FieldDefinition) -> QWidget:
         if field_def.field_type == "date":
-            widget = QDateEdit()
-            widget.setCalendarPopup(True)
-            widget.setDisplayFormat("dd/MM/yyyy")
-            widget.setDate(QDate.currentDate())
-            return widget
-        if field_def.field_type in {"number", "currency"}:
+            return DateLineEdit()
+        if field_def.field_type == "currency":
+            return CurrencyLineEdit()
+
+        if field_def.field_type == "number":
             widget = QDoubleSpinBox()
             widget.setMaximum(999999999.99)
             widget.setDecimals(2)
-            widget.setPrefix("$" if field_def.field_type == "currency" else "")
             return widget
         if field_def.field_type == "textarea":
             widget = QTextEdit()
@@ -141,6 +214,8 @@ class ReceiptFormDialog(QDialog):
             if isinstance(widget, QDateEdit):
                 values[field_def.key] = widget.date().toString("yyyy-MM-dd")
             elif isinstance(widget, QDoubleSpinBox):
+                values[field_def.key] = widget.value()
+            elif isinstance(widget, CurrencyLineEdit):
                 values[field_def.key] = widget.value()
             elif isinstance(widget, QTextEdit):
                 values[field_def.key] = widget.toPlainText().strip()
@@ -344,15 +419,14 @@ class DesktopReceiptPanel(QWidget):
 
     def _make_widget(self, field_def: FieldDefinition) -> QWidget:
         if field_def.field_type == "date":
-            widget = QDateEdit()
-            widget.setCalendarPopup(True)
-            widget.setDisplayFormat("dd/MM/yyyy")
-            widget.setDate(QDate.currentDate())
-        elif field_def.field_type in {"number", "currency"}:
+            widget = DateLineEdit()
+        elif field_def.field_type == "currency":
+            widget = CurrencyLineEdit()
+
+        elif field_def.field_type == "number":
             widget = QDoubleSpinBox()
             widget.setMaximum(999999999.99)
             widget.setDecimals(2)
-            widget.setPrefix("$" if field_def.field_type == "currency" else "")
         elif field_def.field_type == "textarea":
             widget = QTextEdit()
             widget.setFixedHeight(58)
@@ -373,9 +447,11 @@ class DesktopReceiptPanel(QWidget):
         values: dict[str, Any] = {}
         for field_def in self.fields:
             widget = self.widgets[field_def.key]
-            if isinstance(widget, QDateEdit):
-                values[field_def.key] = widget.date().toString("yyyy-MM-dd")
+            if isinstance(widget, DateLineEdit):
+                values[field_def.key] = widget.value()
             elif isinstance(widget, QDoubleSpinBox):
+                values[field_def.key] = widget.value()
+            elif isinstance(widget, CurrencyLineEdit):
                 values[field_def.key] = widget.value()
             elif isinstance(widget, QTextEdit):
                 values[field_def.key] = widget.toPlainText().strip()
@@ -413,10 +489,12 @@ class DesktopReceiptPanel(QWidget):
     def clear_form(self, keep_status: bool = False) -> None:
         for field_def in self.fields:
             widget = self.widgets.get(field_def.key)
-            if isinstance(widget, QDateEdit):
-                widget.setDate(QDate.currentDate())
+            if isinstance(widget, DateLineEdit):
+                widget.setText(date.today().strftime("%d/%m/%Y"))
             elif isinstance(widget, QDoubleSpinBox):
                 widget.setValue(0)
+            elif isinstance(widget, CurrencyLineEdit):
+                widget.clear()
             elif isinstance(widget, QTextEdit):
                 widget.clear()
             elif isinstance(widget, QComboBox):
