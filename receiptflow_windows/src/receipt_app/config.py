@@ -93,10 +93,13 @@ class AppSettings:
     default_sort: str = "Newest first"
 
     @staticmethod
+    @staticmethod
     def default() -> "AppSettings":
-        support = app_support_dir()
         return AppSettings(
-            db_path= "C:\Users\Willh\OneDrive - Coogee Legion Ex-Services Club\Apps\Receipts\database\.receiptflow\receipts.db",
+            db_path=Path(
+                r"C:\Users\Willh\OneDrive - Coogee Legion Ex-Services Club"
+                r"\Apps\Receipts\database\.receiptflow\receipts.db"
+            ),
             import_folder=Path.home() / "Downloads",
         )
 
