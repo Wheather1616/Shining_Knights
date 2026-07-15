@@ -281,4 +281,33 @@ QScrollBar::sub-line:vertical {
 }
 
 
+
+QPushButton#MiniEditButton {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+    border-radius: 10px;
+    padding: 5px 9px;
+    min-height: 18px;
+    font-size: 11px;
+    font-weight: 900;
+}
+QPushButton#MiniEditButton:hover {
+    background: #bbf7d0;
+    border-color: #22c55e;
+}
+QPushButton#MiniDeleteButton {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    padding: 5px 9px;
+    min-height: 18px;
+    font-size: 11px;
+    font-weight: 900;
+}
+QPushButton#MiniDeleteButton:hover {
+    background: #fecaca;
+    border-color: #ef4444;
+}
 """
