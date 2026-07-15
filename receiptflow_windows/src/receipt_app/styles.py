@@ -99,8 +99,8 @@ QFrame#DesktopPanel QWidget {
     background: transparent;
 }
 QWidget#DesktopDragHeader {
-    background: #ffffff;
-    border: 1px solid #d8dee7;
+background: #285cd4;
+    border: 1px solid #1d4ed8;
     border-radius: 18px;
 }
 QFrame#DesktopFormCard {
@@ -109,9 +109,10 @@ QFrame#DesktopFormCard {
     border-radius: 18px;
 }
 QLabel#DesktopPanelTitle {
-    color: #17202f;
+color: #ffffff;
     font-size: 17px;
     font-weight: 900;
+    background: transparent;
 }
 QLabel#DesktopSubheading {
     color: #17202f;
@@ -139,8 +140,8 @@ QLabel#DesktopStatus {
     font-weight: 800;
 }
 QPushButton#DesktopIconButton {
-    background: #f3f7ff;
-    border: 1px solid #d6e0f5;
+background: #ffffff;
+    border: 1px solid #dbeafe;
     color: #17202f;
     min-width: 28px;
     max-width: 32px;
@@ -151,14 +152,14 @@ QPushButton#DesktopIconButton {
     font-weight: 900;
 }
 QPushButton#DesktopIconButton:hover {
-    background: #eef4ff;
-    border-color: #285cd4;
+background: #dbeafe;
+    border-color: #93c5fd;
     color: #17202f;
 }
 QPushButton#DesktopOpenAppButton {
-    background: #f3f7ff;
+background: #ffffff;
     color: #17202f;
-    border: 1px solid #d6e0f5;
+    border: 1px solid #dbeafe;
     border-radius: 14px;
     padding: 7px 12px;
     min-height: 24px;
@@ -166,8 +167,8 @@ QPushButton#DesktopOpenAppButton {
     font-weight: 900;
 }
 QPushButton#DesktopOpenAppButton:hover {
-    background: #eef4ff;
-    border-color: #285cd4;
+background: #dbeafe;
+    border-color: #93c5fd;
 }
 QFrame#DesktopPanel QLineEdit,
 QFrame#DesktopPanel QTextEdit,
@@ -193,7 +194,7 @@ QFrame#DesktopPanel QSpinBox:focus {
     border: 2px solid #285cd4;
 }
 QPushButton#DesktopPrimaryButton {
-    background: #dbeafe;
+background: #dbeafe;
     color: #17202f;
     border: 1px solid #93c5fd;
     border-radius: 14px;
@@ -201,28 +202,32 @@ QPushButton#DesktopPrimaryButton {
     font-weight: 900;
 }
 QPushButton#DesktopPrimaryButton:hover {
-    background: #bfdbfe;
+background: #285cd4;
+    color: #ffffff;
     border-color: #285cd4;
 }
 QPushButton#DesktopPrimaryButton:pressed {
-    background: #93c5fd;
+background: #1d4ed8;
+    color: #ffffff;
+    border-color: #1d4ed8;
 }
 QPushButton#DesktopSecondaryButton {
-    background: #f3f7ff;
+background: #ffffff;
     color: #17202f;
-    border: 1px solid #d6e0f5;
+    border: 1px solid #bfdbfe;
     border-radius: 14px;
     padding: 10px 14px;
     font-weight: 900;
 }
 QPushButton#DesktopSecondaryButton:hover {
-    background: #eef4ff;
+background: #285cd4;
+    color: #ffffff;
     border-color: #285cd4;
 }
 QPushButton#DesktopDropdownButton {
-    background: #ffffff;
+background: #dbeafe;
     color: #17202f;
-    border: 1px solid #d8dee7;
+    border: 1px solid #93c5fd;
     border-radius: 14px;
     padding: 10px 12px;
     text-align: left;
@@ -230,7 +235,7 @@ QPushButton#DesktopDropdownButton {
     font-weight: 900;
 }
 QPushButton#DesktopDropdownButton:hover {
-    background: #eef4ff;
+background: #bfdbfe;
     border-color: #285cd4;
 }
 QPushButton#DesktopDropdownButton:disabled {
@@ -243,18 +248,17 @@ QFrame#DesktopDropdownPanel {
     border-radius: 18px;
 }
 QListWidget#DesktopReceiptList {
-    background: #ffffff;
+background: #ffffff;
     border: none;
     color: #17202f;
-    padding: 2px;
+    padding: 6px;
     outline: 0;
 }
 QListWidget#DesktopReceiptList::item {
-    background: #f3f6fa;
-    border: 1px solid #edf0f4;
-    border-radius: 12px;
-    margin: 3px 0;
-    padding: 8px 10px;
+background: transparent;
+    border: none;
+    margin: 0;
+    padding: 0;
     color: #17202f;
     font-weight: 700;
 }
@@ -283,31 +287,98 @@ QScrollBar::sub-line:vertical {
 
 
 QPushButton#MiniEditButton {
-    background: #dcfce7;
+background: #dcfce7;
     color: #166534;
     border: 1px solid #86efac;
     border-radius: 10px;
-    padding: 5px 9px;
-    min-height: 18px;
+    padding: 6px 10px;
+    min-height: 24px;
     font-size: 11px;
     font-weight: 900;
 }
 QPushButton#MiniEditButton:hover {
-    background: #bbf7d0;
-    border-color: #22c55e;
+background: #22c55e;
+    color: #ffffff;
+    border-color: #16a34a;
 }
 QPushButton#MiniDeleteButton {
-    background: #fee2e2;
+background: #fee2e2;
     color: #991b1b;
     border: 1px solid #fecaca;
     border-radius: 10px;
-    padding: 5px 9px;
-    min-height: 18px;
+    padding: 6px 10px;
+    min-height: 24px;
     font-size: 11px;
     font-weight: 900;
 }
 QPushButton#MiniDeleteButton:hover {
-    background: #fecaca;
-    border-color: #ef4444;
+background: #ef4444;
+    color: #ffffff;
+    border-color: #dc2626;
 }
+
+QPushButton#MiniDeleteButton:pressed {
+background: #dc2626;
+    color: #ffffff;
+    border-color: #b91c1c;
+}
+
+QWidget#DesktopReceiptRow {
+background: #f8fbff;
+    border: 1px solid #d8dee7;
+    border-radius: 12px;
+}
+
+QWidget#BrowseReceiptRow {
+background: #f8fbff;
+    border: 1px solid #d8dee7;
+    border-radius: 12px;
+}
+
+QLabel#DesktopReceiptRowLabel {
+color: #17202f;
+    font-size: 12px;
+    font-weight: 800;
+    background: transparent;
+}
+
+QLabel#BrowseReceiptRowLabel {
+color: #17202f;
+    font-size: 12px;
+    font-weight: 800;
+    background: transparent;
+}
+
+QWidget#ReceiptActionsWidget {
+background: transparent;
+}
+
+/* Final desktop-tab overrides kept at the end so they win over broad QWidget rules. */
+QWidget#DesktopDragHeader {
+    background: #285cd4;
+    border: 1px solid #1d4ed8;
+    border-radius: 18px;
+}
+QLabel#DesktopPanelTitle {
+    color: #ffffff;
+    background: transparent;
+}
+QWidget#DesktopReceiptRow,
+QWidget#BrowseReceiptRow {
+    background: #f8fbff;
+    border: 1px solid #d8dee7;
+    border-radius: 12px;
+}
+QPushButton#DesktopPrimaryButton:hover,
+QPushButton#DesktopSecondaryButton:hover {
+    background: #285cd4;
+    color: #ffffff;
+    border-color: #285cd4;
+}
+QPushButton#MiniDeleteButton:hover {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #dc2626;
+}
+
 """
