@@ -96,7 +96,7 @@ class AppSettings:
     def default() -> "AppSettings":
         support = app_support_dir()
         return AppSettings(
-            db_path=support / "receipts.db",
+            db_path= "C:\Users\Willh\OneDrive - Coogee Legion Ex-Services Club\Apps\Receipts\database\.receiptflow\receipts.db",
             import_folder=Path.home() / "Downloads",
         )
 
