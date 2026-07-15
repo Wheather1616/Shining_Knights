@@ -104,12 +104,12 @@ background: #285cd4;
     border-radius: 18px;
 }
 QFrame#DesktopFormCard {
-    background: #ffffff;
+    background: ##285cd4
     border: 1px solid #d8dee7;
     border-radius: 18px;
 }
 QLabel#DesktopPanelTitle {
-color: #ffffff;
+color: #000000;
     font-size: 17px;
     font-weight: 900;
     background: transparent;
