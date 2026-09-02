@@ -51,7 +51,7 @@ from .styles import APP_QSS
 
 DROPDOWN_OPTIONS_BY_KEY = {
     "payment_type": ["Eftpos", "Cash", "MOTO", "Direct Debit"],
-    "description": ["Renewal", "New Member", "Replacement Card", "Function"],
+    "description": ["Renewal", "New Member", "Replacement Card", "Function", "Merch Pack", "Merch - T-Shirt", "Merch - Towel", "Merch - Cap", "Merch - Stuuby", "Merch - Beanie", "Merch - Bag"],
 }
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 APP_LOGO_PATH = ASSETS_DIR / "logo.webp"
