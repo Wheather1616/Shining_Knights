@@ -10,7 +10,7 @@ FieldType = Literal["text", "number", "currency", "date", "textarea", "dropdown"
 
 PAYMENT_TYPE_OPTIONS = ["Eftpos", "Cash", "MOTO", "Direct Debit"]
 
-DESCRIPTION_OPTIONS = ["Renewal", "New Member", "Replacement Card", "Function"]
+DESCRIPTION_OPTIONS = ["Renewal", "New Member", "Replacement Card", "Function", "Merch Pack", "Merch - T-Shirt", "Merch - Towel", "Merch - Cap", "Merch - Stuuby", "Merch - Beanie", "Merch - Bag"]
 
 APP_NAME = "ReceiptFlow"
 
