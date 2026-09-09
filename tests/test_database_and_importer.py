@@ -28,8 +28,8 @@ def test_manual_receipt_can_be_stored_and_found(tmp_path: Path):
 def test_csv_import_maps_common_headers(tmp_path: Path):
     csv_path = tmp_path / "receipts.csv"
     csv_path.write_text(
-        "Receipt No,Date,Name / Customer,Amount,Payment Type,Member No,Notes\n"
-        "R-200,16/05/2026,Noah Chen,$18.50,Cash,M-002,Coffee\n",
+        "Receipt No,Date,Description,Name / Customer,Amount,Payment Type,Member No,Notes\n"
+        "R-200,16/05/2026,Renewal,Noah Chen,$18.50,Cash,M-002,Coffee\n",
         encoding="utf-8",
     )
     db = ReceiptDatabase(tmp_path / "receipts.db")
