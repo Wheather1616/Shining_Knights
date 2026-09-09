@@ -88,7 +88,6 @@ class AppSettings:
     default_sort: str = "Newest first"
 
     @staticmethod
-    @staticmethod
     def default() -> "AppSettings":
         return AppSettings(
             db_path=default_db_path(),
