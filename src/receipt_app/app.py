@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import fields
 import json
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +49,113 @@ from .database import ReceiptDatabase, ReceiptRecord, SORT_OPTIONS
 from .importer import import_file, mapping_preview
 from .styles import APP_QSS
 
+DROPDOWN_OPTIONS_BY_KEY = {
+    "payment_type": ["Eftpos", "Cash", "MOTO", "Direct Debit"],
+    "description": ["Renewal", "New Member", "Replacement Card", "Function", "Merch Pack", "Merch - T-Shirt", "Merch - Towel", "Merch - Cap", "Merch - Stuuby", "Merch - Beanie", "Merch - Bag"],
+}
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+APP_LOGO_PATH = ASSETS_DIR / "logo.jpg"
+
+class CurrencyLineEdit(QLineEdit):
+    """A normal typable money field that formats values like $10.00."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setPlaceholderText("$0.00")
+        self.editingFinished.connect(self.format_as_currency)
+
+    def value(self) -> float:
+        text = self.text().strip()
+        if not text:
+            return 0.0
+
+        cleaned = (
+            text.replace("$", "")
+            .replace(",", "")
+            .strip()
+        )
+
+        if not cleaned:
+            return 0.0
+
+        try:
+            return float(cleaned)
+        except ValueError:
+            return 0.0
+
+    def format_as_currency(self) -> None:
+        text = self.text().strip()
+        if not text:
+            return
+
+        self.setText(f"${self.value():,.2f}")
+
+    def set_value(self, value: Any) -> None:
+        if value in {None, ""}:
+            self.clear()
+            return
+        try:
+            self.setText(f"${float(value):,.2f}")
+        except (TypeError, ValueError):
+            self.setText(str(value))
+
+class DateLineEdit(QLineEdit):
+    """A typable date field that defaults to today and saves as yyyy-mm-dd."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setPlaceholderText("dd/mm/yyyy")
+        self.setText(date.today().strftime("%d/%m/%Y"))
+        self.editingFinished.connect(self.format_date)
+
+    def value(self) -> str:
+        text = self.text().strip()
+        if not text:
+            return ""
+
+        formats = [
+            "%d/%m/%Y",
+            "%d/%m/%y",
+            "%Y-%m-%d",
+            "%d-%m-%Y",
+            "%d-%m-%y",
+        ]
+
+        for fmt in formats:
+            try:
+                parsed = datetime.strptime(text, fmt).date()
+                return parsed.isoformat()
+            except ValueError:
+                continue
+
+        return text
+
+    def format_date(self) -> None:
+        value = self.value()
+        if not value:
+            return
+
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d").date()
+            self.setText(parsed.strftime("%d/%m/%Y"))
+        except ValueError:
+            pass
+
+    def set_value(self, value: Any) -> None:
+        text = str(value or "").strip()
+        if not text:
+            self.setText(date.today().strftime("%d/%m/%Y"))
+            return
+
+        for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%d-%m-%y"]:
+            try:
+                parsed = datetime.strptime(text, fmt).date()
+                self.setText(parsed.strftime("%d/%m/%Y"))
+                return
+            except ValueError:
+                continue
+
+        self.setText(text)
 class CenteredCheckBox(QWidget):
     """Small wrapper that centres a checkbox inside a table cell.
 
@@ -74,20 +182,29 @@ class CenteredCheckBox(QWidget):
 
 
 class ReceiptFormDialog(QDialog):
-    def __init__(self, fields: list[FieldDefinition], parent: QWidget | None = None):
+    def __init__(
+        self,
+        fields: list[FieldDefinition],
+        parent: QWidget | None = None,
+        title: str = "New Receipt",
+        heading: str = "Add a receipt",
+        subtitle: str = "Capture the transaction as soon as it is completed.",
+        initial_values: dict[str, Any] | None = None,
+        quick_only: bool = True,
+    ):
         super().__init__(parent)
-        self.setWindowTitle("New Receipt")
+        self.setWindowTitle(title)
         self.setMinimumWidth(480)
-        self.fields = [field for field in fields if field.quick_entry]
+        self.fields = [field for field in fields if field.quick_entry] if quick_only else list(fields)
         self.widgets: dict[str, QWidget] = {}
 
         layout = QVBoxLayout(self)
-        title = QLabel("Add a receipt")
-        title.setObjectName("SectionTitle")
-        subtitle = QLabel("Capture the transaction as soon as it is completed.")
-        subtitle.setObjectName("Subtitle")
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        title_label = QLabel(heading)
+        title_label.setObjectName("SectionTitle")
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("Subtitle")
+        layout.addWidget(title_label)
+        layout.addWidget(subtitle_label)
 
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignLeft)
@@ -103,18 +220,19 @@ class ReceiptFormDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+        if initial_values:
+            self.set_values(initial_values)
+
     def _make_widget(self, field_def: FieldDefinition) -> QWidget:
         if field_def.field_type == "date":
-            widget = QDateEdit()
-            widget.setCalendarPopup(True)
-            widget.setDisplayFormat("dd/MM/yyyy")
-            widget.setDate(QDate.currentDate())
-            return widget
-        if field_def.field_type in {"number", "currency"}:
+            return DateLineEdit()
+        if field_def.field_type == "currency":
+            return CurrencyLineEdit()
+
+        if field_def.field_type == "number":
             widget = QDoubleSpinBox()
             widget.setMaximum(999999999.99)
             widget.setDecimals(2)
-            widget.setPrefix("$" if field_def.field_type == "currency" else "")
             return widget
         if field_def.field_type == "textarea":
             widget = QTextEdit()
@@ -122,18 +240,51 @@ class ReceiptFormDialog(QDialog):
             return widget
         if field_def.field_type == "dropdown":
             widget = QComboBox()
-            widget.setEditable(True)
-            widget.addItems(field_def.options)
+            widget.setEditable(False)
+            options = DROPDOWN_OPTIONS_BY_KEY.get(field_def.key, field_def.options)
+            widget.addItems(options)
             return widget
         return QLineEdit()
+
+    def set_values(self, values: dict[str, Any]) -> None:
+        for field_def in self.fields:
+            widget = self.widgets.get(field_def.key)
+            value = values.get(field_def.key, "")
+            if widget is None:
+                continue
+            if isinstance(widget, DateLineEdit):
+                widget.set_value(value)
+            elif isinstance(widget, CurrencyLineEdit):
+                widget.set_value(value)
+            elif isinstance(widget, QDoubleSpinBox):
+                try:
+                    widget.setValue(float(value or 0))
+                except (TypeError, ValueError):
+                    widget.setValue(0)
+            elif isinstance(widget, QTextEdit):
+                widget.setPlainText(str(value or ""))
+            elif isinstance(widget, QComboBox):
+                text = str(value or "")
+                if text and widget.findText(text) == -1:
+                    widget.addItem(text)
+                if text:
+                    widget.setCurrentText(text)
+                else:
+                    widget.setCurrentIndex(-1)
+            elif isinstance(widget, QLineEdit):
+                widget.setText(str(value or ""))
 
     def values(self) -> dict[str, Any]:
         values: dict[str, Any] = {}
         for field_def in self.fields:
             widget = self.widgets[field_def.key]
-            if isinstance(widget, QDateEdit):
+            if isinstance(widget, DateLineEdit):
+                values[field_def.key] = widget.value()
+            elif isinstance(widget, QDateEdit):
                 values[field_def.key] = widget.date().toString("yyyy-MM-dd")
             elif isinstance(widget, QDoubleSpinBox):
+                values[field_def.key] = widget.value()
+            elif isinstance(widget, CurrencyLineEdit):
                 values[field_def.key] = widget.value()
             elif isinstance(widget, QTextEdit):
                 values[field_def.key] = widget.toPlainText().strip()
@@ -151,7 +302,6 @@ class ReceiptFormDialog(QDialog):
             return
         super().accept()
 
-
 class DesktopReceiptPanel(QWidget):
     """Floating desktop tab for fast receipt capture.
 
@@ -167,6 +317,7 @@ class DesktopReceiptPanel(QWidget):
         on_receipt_saved,
         on_open_app,
         on_position_changed=None,
+        on_delete_receipt=None,
         width: int = 430,
         height: int = 640,
         parent: QWidget | None = None,
@@ -177,6 +328,7 @@ class DesktopReceiptPanel(QWidget):
         self.on_receipt_saved = on_receipt_saved
         self.on_open_app = on_open_app
         self.on_position_changed = on_position_changed
+        self.on_delete_receipt = on_delete_receipt
         self.widgets: dict[str, QWidget] = {}
         self._drag_offset: QPoint | None = None
 
@@ -204,10 +356,13 @@ class DesktopReceiptPanel(QWidget):
 
         header_widget = QWidget()
         header_widget.setObjectName("DesktopDragHeader")
+        header_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         header_widget.setCursor(Qt.CursorShape.OpenHandCursor)
+        header_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        header_widget.setMinimumHeight(58)
         header_widget.installEventFilter(self)
         header = QHBoxLayout(header_widget)
-        header.setContentsMargins(0, 0, 0, 0)
+        header.setContentsMargins(14, 10, 10, 10)
         header.setSpacing(8)
 
         title_area = QVBoxLayout()
@@ -293,8 +448,9 @@ class DesktopReceiptPanel(QWidget):
         self.today_list.setObjectName("DesktopReceiptList")
         self.today_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self.today_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.today_list.setMinimumHeight(96)
-        self.today_list.setMaximumHeight(190)
+        self.today_list.setMinimumHeight(170)
+        self.today_list.setMaximumHeight(320)
+        self.today_list.setSpacing(8)
         dropdown_layout.addWidget(self.today_list)
         self.today_dropdown.hide()
         layout.addWidget(self.today_dropdown)
@@ -337,22 +493,22 @@ class DesktopReceiptPanel(QWidget):
 
     def _make_widget(self, field_def: FieldDefinition) -> QWidget:
         if field_def.field_type == "date":
-            widget = QDateEdit()
-            widget.setCalendarPopup(True)
-            widget.setDisplayFormat("dd/MM/yyyy")
-            widget.setDate(QDate.currentDate())
-        elif field_def.field_type in {"number", "currency"}:
+            widget = DateLineEdit()
+        elif field_def.field_type == "currency":
+            widget = CurrencyLineEdit()
+
+        elif field_def.field_type == "number":
             widget = QDoubleSpinBox()
             widget.setMaximum(999999999.99)
             widget.setDecimals(2)
-            widget.setPrefix("$" if field_def.field_type == "currency" else "")
         elif field_def.field_type == "textarea":
             widget = QTextEdit()
             widget.setFixedHeight(58)
         elif field_def.field_type == "dropdown":
             widget = QComboBox()
-            widget.setEditable(True)
-            widget.addItems(field_def.options)
+            widget.setEditable(False)
+            options = DROPDOWN_OPTIONS_BY_KEY.get(field_def.key, field_def.options)
+            widget.addItems(options)
         else:
             widget = QLineEdit()
 
@@ -365,9 +521,11 @@ class DesktopReceiptPanel(QWidget):
         values: dict[str, Any] = {}
         for field_def in self.fields:
             widget = self.widgets[field_def.key]
-            if isinstance(widget, QDateEdit):
-                values[field_def.key] = widget.date().toString("yyyy-MM-dd")
+            if isinstance(widget, DateLineEdit):
+                values[field_def.key] = widget.value()
             elif isinstance(widget, QDoubleSpinBox):
+                values[field_def.key] = widget.value()
+            elif isinstance(widget, CurrencyLineEdit):
                 values[field_def.key] = widget.value()
             elif isinstance(widget, QTextEdit):
                 values[field_def.key] = widget.toPlainText().strip()
@@ -405,14 +563,16 @@ class DesktopReceiptPanel(QWidget):
     def clear_form(self, keep_status: bool = False) -> None:
         for field_def in self.fields:
             widget = self.widgets.get(field_def.key)
-            if isinstance(widget, QDateEdit):
-                widget.setDate(QDate.currentDate())
+            if isinstance(widget, DateLineEdit):
+                widget.setText(date.today().strftime("%d/%m/%Y"))
             elif isinstance(widget, QDoubleSpinBox):
                 widget.setValue(0)
+            elif isinstance(widget, CurrencyLineEdit):
+                widget.clear()
             elif isinstance(widget, QTextEdit):
                 widget.clear()
             elif isinstance(widget, QComboBox):
-                widget.setCurrentText("")
+                widget.setCurrentIndex(-1)
             elif isinstance(widget, QLineEdit):
                 widget.clear()
         if not keep_status:
@@ -442,7 +602,47 @@ class DesktopReceiptPanel(QWidget):
             receipt_no = row["receipt_no"] or "No receipt no"
             created = (row["created_at"] or "")[11:16] if "created_at" in row.keys() else ""
             prefix = f"{created} · " if created else ""
-            self.today_list.addItem(f"{prefix}{name} | {receipt_no} | {amount}")
+
+            item = QListWidgetItem()
+            row_widget = QWidget()
+            row_widget.setObjectName("DesktopReceiptRow")
+            row_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            row_widget.setMinimumHeight(70)
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(10, 8, 10, 8)
+            row_layout.setSpacing(10)
+
+            label = QLabel(f"{prefix}{name}\n{receipt_no} | {amount}")
+            label.setObjectName("DesktopReceiptRowLabel")
+            label.setWordWrap(True)
+            label.setMinimumHeight(44)
+            label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            row_layout.addWidget(label, 1)
+
+            delete_btn = QPushButton("Delete")
+            delete_btn.setObjectName("MiniDeleteButton")
+            delete_btn.setMinimumSize(74, 34)
+            delete_btn.clicked.connect(lambda checked=False, receipt_id=int(row["id"]): self.delete_receipt(receipt_id))
+            row_layout.addWidget(delete_btn)
+
+            item.setSizeHint(QSize(0, 76))
+            self.today_list.addItem(item)
+            self.today_list.setItemWidget(item, row_widget)
+
+    def delete_receipt(self, receipt_id: int) -> None:
+        confirm = QMessageBox.question(
+            self,
+            "Delete receipt",
+            "Delete this receipt? This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        self.db.delete_receipt(receipt_id)
+        self.status_label.setText("Receipt deleted.")
+        self.refresh()
+        self.on_receipt_saved()
 
     def toggle_today_receipts(self) -> None:
         open_now = self.today_toggle.isChecked()
@@ -493,6 +693,8 @@ class ReceiptMainWindow(QMainWindow):
         self.desktop_panel: DesktopReceiptPanel | None = None
 
         self.setWindowTitle("ReceiptFlow")
+        if APP_LOGO_PATH.exists():
+            self.setWindowIcon(QIcon(str(APP_LOGO_PATH)))
         self.resize(1120, 760)
         self.setStyleSheet(APP_QSS)
 
@@ -528,6 +730,9 @@ class ReceiptMainWindow(QMainWindow):
         self.browse_btn = self._side_button("Browse transactions", lambda: self.stack.setCurrentIndex(1))
         self.quick_btn = self._side_button("Quick receipt", self.open_quick_receipt)
         self.desktop_btn = self._side_button("Desktop tab", self.show_desktop_tab)
+        if APP_LOGO_PATH.exists():
+            self.desktop_btn.setIcon(QIcon(str(APP_LOGO_PATH)))
+            self.desktop_btn.setIconSize(QSize(22, 22))
         self.settings_btn = self._side_button("Settings", lambda: self.stack.setCurrentIndex(2))
         for button in [self.home_btn, self.browse_btn, self.quick_btn, self.desktop_btn, self.settings_btn]:
             side_layout.addWidget(button)
@@ -650,6 +855,7 @@ class ReceiptMainWindow(QMainWindow):
         self.table.setAlternatingRowColors(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.grouped_list = QListWidget()
+        self.grouped_list.setSpacing(8)
         self.results_stack.addWidget(self.table)
         self.results_stack.addWidget(self.grouped_list)
         layout.addWidget(self.results_stack, 1)
@@ -817,7 +1023,8 @@ class ReceiptMainWindow(QMainWindow):
             required = self.fields_table.cellWidget(row, 3).isChecked()
             quick = self.fields_table.cellWidget(row, 4).isChecked()
             browse = self.fields_table.cellWidget(row, 5).isChecked()
-            fields.append(FieldDefinition(key, label, type_combo.currentText(), required, quick, browse))
+            options = DROPDOWN_OPTIONS_BY_KEY.get(key, [])
+            fields.append(FieldDefinition(key, label, type_combo.currentText(), required, quick, browse, options))
 
         self.settings.db_path = Path(self.db_path_input.text()).expanduser()
         self.settings.import_folder = Path(self.import_folder_input.text()).expanduser()
@@ -891,6 +1098,104 @@ class ReceiptMainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "Import failed", str(exc))
 
+    def _row_values_for_edit(self, row: Any) -> dict[str, Any]:
+        custom = json.loads(row["custom_fields"] or "{}")
+        values: dict[str, Any] = {}
+        for field_def in self.settings.fields:
+            if field_def.key in CORE_FIELD_KEYS:
+                values[field_def.key] = row[field_def.key]
+            else:
+                values[field_def.key] = custom.get(field_def.key, "")
+        return values
+
+    def _record_from_values(self, values: dict[str, Any], source: str) -> ReceiptRecord:
+        custom = {key: value for key, value in values.items() if key not in CORE_FIELD_KEYS}
+        return ReceiptRecord(
+            receipt_no=str(values.get("receipt_no", "") or ""),
+            transaction_date=str(values.get("transaction_date", "") or ""),
+            name=str(values.get("name", "") or ""),
+            amount=float(values.get("amount", 0) or 0),
+            payment_type=str(values.get("payment_type", "") or ""),
+            member_no=str(values.get("member_no", "") or ""),
+            notes=str(values.get("notes", "") or ""),
+            custom_fields=custom,
+            source=source,
+        )
+
+    def edit_receipt(self, receipt_id: int) -> None:
+        row = self.db.get_receipt(receipt_id)
+        if row is None:
+            QMessageBox.warning(self, "Receipt not found", "This receipt could not be found. It may have already been deleted.")
+            self.refresh_results()
+            self.refresh_desktop_tab()
+            return
+
+        dialog = ReceiptFormDialog(
+            self.settings.fields,
+            self,
+            title="Edit Receipt",
+            heading="Edit receipt",
+            subtitle="Update the receipt details and save the corrected data back to the database.",
+            initial_values=self._row_values_for_edit(row),
+            quick_only=False,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        record = self._record_from_values(dialog.values(), str(row["source"] or "manual"))
+        self.db.update_receipt(receipt_id, record)
+        self.refresh_results()
+        self.refresh_desktop_tab()
+        QMessageBox.information(self, "Receipt updated", "The receipt was updated successfully.")
+
+    def delete_receipt(self, receipt_id: int) -> None:
+        row = self.db.get_receipt(receipt_id)
+        if row is None:
+            QMessageBox.warning(self, "Receipt not found", "This receipt could not be found. It may have already been deleted.")
+            self.refresh_results()
+            self.refresh_desktop_tab()
+            return
+
+        amount = f"${float(row['amount']):,.2f}" if row["amount"] not in {None, ""} else ""
+        description = row["name"] or row["receipt_no"] or "this receipt"
+        confirm = QMessageBox.question(
+            self,
+            "Delete receipt",
+            f"Delete {description} {amount}? This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        self.db.delete_receipt(receipt_id)
+        self.refresh_results()
+        self.refresh_desktop_tab()
+        QMessageBox.information(self, "Receipt deleted", "The receipt was deleted.")
+
+    def _receipt_actions_widget(self, receipt_id: int) -> QWidget:
+        widget = QWidget()
+        widget.setObjectName("ReceiptActionsWidget")
+        widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        widget.setMinimumHeight(42)
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(8)
+
+        edit_btn = QPushButton("Edit")
+        edit_btn.setObjectName("MiniEditButton")
+        edit_btn.setMinimumSize(62, 32)
+        edit_btn.clicked.connect(lambda checked=False, rid=receipt_id: self.edit_receipt(rid))
+        layout.addWidget(edit_btn)
+
+        delete_btn = QPushButton("Delete")
+        delete_btn.setObjectName("MiniDeleteButton")
+        delete_btn.setMinimumSize(74, 32)
+        delete_btn.clicked.connect(lambda checked=False, rid=receipt_id: self.delete_receipt(rid))
+        layout.addWidget(delete_btn)
+        layout.addStretch()
+        return widget
+
     def refresh_results(self) -> None:
         if not hasattr(self, "table"):
             return
@@ -917,8 +1222,12 @@ class ReceiptMainWindow(QMainWindow):
         keys = self._visible_field_keys()
         labels = self._visible_field_labels()
         self.table.clear()
-        self.table.setColumnCount(len(keys))
-        self.table.setHorizontalHeaderLabels(labels)
+        self.table.setColumnCount(len(keys) + 1)
+        self.table.setHorizontalHeaderLabels(labels + ["Actions"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(len(keys), QHeaderView.ResizeToContents)
+        self.table.setColumnWidth(len(keys), 170)
+        self.table.verticalHeader().setDefaultSectionSize(54)
         self.table.setRowCount(len(self.last_rows))
         for row_index, row in enumerate(self.last_rows):
             custom = json.loads(row["custom_fields"] or "{}")
@@ -928,18 +1237,38 @@ class ReceiptMainWindow(QMainWindow):
                     value = f"${float(value):,.2f}"
                 item = QTableWidgetItem(str(value or ""))
                 self.table.setItem(row_index, col_index, item)
+            self.table.setCellWidget(row_index, len(keys), self._receipt_actions_widget(int(row["id"])))
+            self.table.setRowHeight(row_index, 56)
 
     def _populate_grouped_results(self) -> None:
         self.grouped_list.clear()
         grouped = self.db.grouped_by_date(self.last_rows)
-        for date, rows in grouped.items():
-            header = QListWidgetItem(f"{date} — {len(rows)} transaction(s)")
+        for date_key, rows in grouped.items():
+            header = QListWidgetItem(f"{date_key} — {len(rows)} transaction(s)")
             header.setFlags(Qt.NoItemFlags)
             self.grouped_list.addItem(header)
             for row in rows:
                 amount = f"${float(row['amount']):,.2f}" if row["amount"] not in {None, ""} else ""
-                item = QListWidgetItem(f"   {row['name'] or 'Unnamed'} | {row['receipt_no'] or 'No receipt no'} | {amount} | {row['payment_type'] or ''}")
+                item = QListWidgetItem()
+                row_widget = QWidget()
+                row_widget.setObjectName("BrowseReceiptRow")
+                row_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+                row_widget.setMinimumHeight(72)
+                row_layout = QHBoxLayout(row_widget)
+                row_layout.setContentsMargins(10, 8, 10, 8)
+                row_layout.setSpacing(10)
+
+                label = QLabel(f"{row['name'] or 'Unnamed'}\n{row['receipt_no'] or 'No receipt no'} | {amount} | {row['payment_type'] or ''}")
+                label.setObjectName("BrowseReceiptRowLabel")
+                label.setWordWrap(True)
+                label.setMinimumHeight(44)
+                label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+                row_layout.addWidget(label, 1)
+                row_layout.addWidget(self._receipt_actions_widget(int(row["id"])))
+
+                item.setSizeHint(QSize(0, 78))
                 self.grouped_list.addItem(item)
+                self.grouped_list.setItemWidget(item, row_widget)
 
     def export_current_results(self) -> None:
         if not self.last_rows:
@@ -959,6 +1288,7 @@ class ReceiptMainWindow(QMainWindow):
                 self._desktop_receipt_saved,
                 self.show_normal,
                 self.save_desktop_tab_position,
+                self.delete_receipt,
                 self.settings.desktop_tab_width,
                 self.settings.desktop_tab_height,
             )

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def configure_qt_plugin_paths() -> None:
-    """Ensure PySide6 can find the native Qt platform plugins on macOS.
+    """Ensure PySide6 can find the native Qt platform plugins
 
     Some virtual environments do not expose Qt's plugin folder automatically.
     Without this path, Qt can fail on startup with: "Could not find the Qt

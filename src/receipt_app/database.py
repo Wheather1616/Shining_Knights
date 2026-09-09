@@ -160,6 +160,55 @@ class ReceiptDatabase:
             conn.commit()
             return int(cursor.lastrowid)
 
+    def get_receipt(self, receipt_id: int) -> sqlite3.Row | None:
+        with self.connect() as conn:
+            return conn.execute("SELECT * FROM receipts WHERE id = ?", (receipt_id,)).fetchone()
+
+    def update_receipt(self, receipt_id: int, record: ReceiptRecord) -> bool:
+        now = datetime.now().isoformat(timespec="seconds")
+        custom_fields = record.custom_fields or {}
+        search_text = record.normalised_search_text()
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE receipts
+                SET receipt_no = ?,
+                    transaction_date = ?,
+                    name = ?,
+                    amount = ?,
+                    payment_type = ?,
+                    member_no = ?,
+                    notes = ?,
+                    custom_fields = ?,
+                    source = ?,
+                    search_text = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    record.receipt_no,
+                    record.transaction_date,
+                    record.name,
+                    record.amount,
+                    record.payment_type,
+                    record.member_no,
+                    record.notes,
+                    json.dumps(custom_fields, ensure_ascii=False),
+                    record.source,
+                    search_text,
+                    now,
+                    receipt_id,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def delete_receipt(self, receipt_id: int) -> bool:
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM receipts WHERE id = ?", (receipt_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
     def search(self, query: str = "", sort: str = "Newest first", limit: int = 500) -> list[sqlite3.Row]:
         order_by = SORT_OPTIONS.get(sort, SORT_OPTIONS["Newest first"])
         query = query.strip()

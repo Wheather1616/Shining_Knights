@@ -1,27 +1,21 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-FieldType = Literal["text", "number", "currency", "date", "textarea", "dropdown"]
+from .paths import (
+    app_support_dir,
+    default_db_path,
+    default_import_folder,
+    legacy_settings_paths,
+)
 
+FieldType = Literal["text", "number", "currency", "date", "textarea", "dropdown"]
 PAYMENT_TYPE_OPTIONS = ["Eftpos", "Cash", "MOTO", "Direct Debit"]
 
 DESCRIPTION_OPTIONS = ["Renewal", "New Member", "Replacement Card", "Function", "Merch Pack", "Merch - T-Shirt", "Merch - Towel", "Merch - Cap", "Merch - Stuuby", "Merch - Beanie", "Merch - Bag"]
-
-APP_NAME = "ReceiptFlow"
-
-
-def app_support_dir() -> Path:
-    """Return a macOS-friendly application support folder, with sane fallbacks."""
-    home = Path.home()
-    if os.name == "posix" and (home / "Library").exists():
-        return home / "Library" / "Application Support" / APP_NAME
-    return home / f".{APP_NAME.lower()}"
-
 
 @dataclass
 class FieldDefinition:
@@ -95,10 +89,9 @@ class AppSettings:
 
     @staticmethod
     def default() -> "AppSettings":
-        support = app_support_dir()
         return AppSettings(
-            db_path=support / "receipts.db",
-            import_folder=Path.home() / "Downloads",
+            db_path=default_db_path(),
+            import_folder=default_import_folder(),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -119,8 +112,20 @@ class AppSettings:
     @staticmethod
     def from_dict(data: dict[str, Any]) -> "AppSettings":
         default = AppSettings.default()
-        fields = [FieldDefinition.from_dict(item) for item in data.get("fields", [])]
-        fields = [field_def for field_def in fields if field_def.key and field_def.label]
+        saved_fields = [FieldDefinition.from_dict(item) for item in data.get("fields", [])]
+        saved_fields = [field_def for field_def in saved_fields if field_def.key and field_def.label]
+
+        if saved_fields:
+            saved_by_key = {field_def.key: field_def for field_def in saved_fields}
+            merged_fields = []
+
+            for default_field in DEFAULT_FIELDS:
+                merged_fields.append(saved_by_key.pop(default_field.key, default_field))
+
+            merged_fields.extend(saved_by_key.values())
+            fields = merged_fields
+        else:
+            fields = list(DEFAULT_FIELDS)
         return AppSettings(
             db_path=Path(data.get("db_path") or default.db_path),
             import_folder=Path(data.get("import_folder") or default.import_folder),
@@ -142,6 +147,13 @@ class SettingsStore:
         self.settings_path.parent.mkdir(parents=True, exist_ok=True)
 
     def load(self) -> AppSettings:
+        if not self.settings_path.exists():
+            for legacy_path in legacy_settings_paths():
+                if legacy_path.exists():
+                    self.settings_path.write_bytes(
+                        legacy_path.read_bytes()
+                    )
+                    break
         if not self.settings_path.exists():
             settings = AppSettings.default()
             self.save(settings)

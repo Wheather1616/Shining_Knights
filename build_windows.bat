@@ -26,7 +26,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
 set "PYTHONPATH=%CD%\src"
-pyinstaller --noconfirm --clean --windowed --name ReceiptFlow --paths src main.py
+pyinstaller --noconfirm --clean --windowed --name ReceiptFlow --paths src --add-data "src\receipt_app\assets\logo.jpg;receipt_app\assets" main.py
 
 if errorlevel 1 (
     echo.
