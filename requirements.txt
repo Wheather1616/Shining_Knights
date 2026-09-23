@@ -3,3 +3,5 @@ openpyxl>=3.1
 python-dateutil>=2.9
 pyinstaller>=6.0
 pytest>=8.0
+sqlcipher3>=0.6.2
+keyring>=25.7.0

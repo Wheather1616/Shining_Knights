@@ -10,6 +10,8 @@ pyinstaller \
   --windowed \
   --name ReceiptFlow \
   --paths src \
+  --collect-all keyring \
+  --collect-all sqlcipher3 \
   --add-data "src/receipt_app/assets/logo.jpg:receipt_app/assets" \
   main.py
 printf '\nBuilt app should appear at: dist/ReceiptFlow.app\n'

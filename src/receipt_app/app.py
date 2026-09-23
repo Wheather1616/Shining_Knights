@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QDate, QEvent, QPoint, QSize, Qt
+from PySide6.QtCore import QDate, QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -44,9 +44,13 @@ from PySide6.QtWidgets import (
     QSystemTrayIcon,
 )
 
+from .backup import DatabaseBackupManager
 from .config import CORE_FIELD_KEYS, FieldDefinition, SettingsStore
 from .database import ReceiptDatabase, ReceiptRecord, SORT_OPTIONS
+from .db_crypto import DatabaseEncryptionError
 from .importer import import_file, mapping_preview
+from .paths import default_backup_dir
+from .security import SecureKeyStoreError
 from .styles import APP_QSS
 
 DROPDOWN_OPTIONS_BY_KEY = {
@@ -632,15 +636,15 @@ class DesktopReceiptPanel(QWidget):
     def delete_receipt(self, receipt_id: int) -> None:
         confirm = QMessageBox.question(
             self,
-            "Delete receipt",
-            "Delete this receipt? This cannot be undone.",
+            "Move receipt to Trash",
+            "Move this receipt to Trash? You can restore it later.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
         if confirm != QMessageBox.Yes:
             return
         self.db.delete_receipt(receipt_id)
-        self.status_label.setText("Receipt deleted.")
+        self.status_label.setText("Receipt moved to Trash.")
         self.refresh()
         self.on_receipt_saved()
 
@@ -688,6 +692,11 @@ class ReceiptMainWindow(QMainWindow):
         self.store = SettingsStore()
         self.settings = self.store.load()
         self.db = ReceiptDatabase(self.settings.db_path)
+        self.backup_manager = DatabaseBackupManager(
+            self.settings.db_path,
+            default_backup_dir(),
+            self.db.key_hex,
+        )
         self.last_rows: list[Any] = []
         self.tray: QSystemTrayIcon | None = None
         self.desktop_panel: DesktopReceiptPanel | None = None
@@ -702,6 +711,15 @@ class ReceiptMainWindow(QMainWindow):
         self.setCentralWidget(self._build_shell())
         self._build_pages()
         self._setup_tray()
+
+        # Create a recovery point on startup (unless an hourly backup already exists),
+        # then check every 15 minutes whether the next hourly snapshot is due.
+        self.run_automatic_backup()
+        self.backup_timer = QTimer(self)
+        self.backup_timer.setInterval(15 * 60 * 1000)
+        self.backup_timer.timeout.connect(self.run_automatic_backup)
+        self.backup_timer.start()
+
         self.refresh_results()
 
     def _build_shell(self) -> QWidget:
@@ -845,8 +863,11 @@ class ReceiptMainWindow(QMainWindow):
         export_btn.clicked.connect(self.export_current_results)
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self.refresh_results)
+        trash_btn = QPushButton("Trash")
+        trash_btn.clicked.connect(self.open_trash)
         action_row.addWidget(export_btn)
         action_row.addWidget(refresh_btn)
+        action_row.addWidget(trash_btn)
         action_row.addStretch()
         layout.addLayout(action_row)
 
@@ -892,6 +913,13 @@ class ReceiptMainWindow(QMainWindow):
         db_row.addWidget(self.db_path_input, 1)
         db_row.addWidget(db_browse_btn)
         database_form.addRow("Database file", db_row)
+
+        self.database_security_label = QLabel(
+            f"Encrypted with SQLCipher {self.db.cipher_version()} · key stored in the OS credential store"
+        )
+        self.database_security_label.setObjectName("Subtitle")
+        self.database_security_label.setWordWrap(True)
+        database_form.addRow("Security", self.database_security_label)
 
         self.import_folder_input = QLineEdit(str(self.settings.import_folder))
         import_browse_btn = QPushButton("Choose folder")
@@ -1037,7 +1065,17 @@ class ReceiptMainWindow(QMainWindow):
         self.settings.fields = fields
         self.store.save(self.settings)
         self.db = ReceiptDatabase(self.settings.db_path)
+        self.backup_manager = DatabaseBackupManager(
+            self.settings.db_path,
+            default_backup_dir(),
+            self.db.key_hex,
+        )
+        self.run_automatic_backup()
         self.db_path_sidebar_label.setText(f"Database:\n{self.settings.db_path}")
+        if hasattr(self, "database_security_label"):
+            self.database_security_label.setText(
+                f"Encrypted with SQLCipher {self.db.cipher_version()} · key stored in the OS credential store"
+            )
         self._setup_tray()
         if self.desktop_panel is not None:
             self.desktop_panel.set_panel_size(self.settings.desktop_tab_width, self.settings.desktop_tab_height)
@@ -1160,8 +1198,8 @@ class ReceiptMainWindow(QMainWindow):
         description = row["name"] or row["receipt_no"] or "this receipt"
         confirm = QMessageBox.question(
             self,
-            "Delete receipt",
-            f"Delete {description} {amount}? This cannot be undone.",
+            "Move receipt to Trash",
+            f"Move {description} {amount} to Trash? You can restore it later.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1171,7 +1209,94 @@ class ReceiptMainWindow(QMainWindow):
         self.db.delete_receipt(receipt_id)
         self.refresh_results()
         self.refresh_desktop_tab()
-        QMessageBox.information(self, "Receipt deleted", "The receipt was deleted.")
+        QMessageBox.information(self, "Moved to Trash", "The receipt was moved to Trash and can be restored.")
+
+    def run_automatic_backup(self) -> None:
+        """Create an hourly recovery point without interrupting normal use."""
+        try:
+            self.backup_manager.create_backup_if_due()
+        except Exception as exc:
+            # Backups should never crash the receipt-entry workflow.
+            print(f"ReceiptFlow automatic backup failed: {exc}", file=sys.stderr)
+
+    def open_trash(self) -> None:
+        """Show soft-deleted receipts and allow the user to restore them."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("ReceiptFlow Trash")
+        dialog.resize(720, 460)
+
+        layout = QVBoxLayout(dialog)
+
+        heading = QLabel("Trash")
+        heading.setObjectName("SectionTitle")
+        helper = QLabel(
+            "Deleted receipts remain in the database and can be restored here."
+        )
+        helper.setObjectName("Subtitle")
+        helper.setWordWrap(True)
+
+        layout.addWidget(heading)
+        layout.addWidget(helper)
+
+        trash_list = QListWidget()
+        layout.addWidget(trash_list, 1)
+
+        def populate() -> None:
+            trash_list.clear()
+            rows = self.db.trashed_receipts()
+
+            if not rows:
+                item = QListWidgetItem("Trash is empty")
+                item.setFlags(Qt.ItemFlag.NoItemFlags)
+                trash_list.addItem(item)
+                return
+
+            for row in rows:
+                amount = (
+                    f"${float(row['amount']):,.2f}"
+                    if row["amount"] not in {None, ""}
+                    else ""
+                )
+                name = row["name"] or row["receipt_no"] or "Unnamed receipt"
+                deleted_at = row["deleted_at"] or ""
+                text = (
+                    f"{name} | {row['receipt_no'] or 'No receipt no'} | {amount}"
+                    f"\nDeleted: {deleted_at}"
+                )
+                item = QListWidgetItem(text)
+                item.setData(Qt.ItemDataRole.UserRole, int(row["id"]))
+                trash_list.addItem(item)
+
+        def restore_selected() -> None:
+            item = trash_list.currentItem()
+            if item is None:
+                return
+
+            receipt_id = item.data(Qt.ItemDataRole.UserRole)
+            if receipt_id is None:
+                return
+
+            if self.db.restore_receipt(int(receipt_id)):
+                populate()
+                self.refresh_results()
+                self.refresh_desktop_tab()
+
+        populate()
+
+        buttons = QHBoxLayout()
+        restore_btn = QPushButton("Restore selected")
+        restore_btn.setObjectName("PrimaryButton")
+        restore_btn.clicked.connect(restore_selected)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+
+        buttons.addWidget(restore_btn)
+        buttons.addStretch()
+        buttons.addWidget(close_btn)
+        layout.addLayout(buttons)
+
+        dialog.exec()
 
     def _receipt_actions_widget(self, receipt_id: int) -> QWidget:
         widget = QWidget()
@@ -1378,7 +1503,18 @@ def run() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("ReceiptFlow")
     app.setStyleSheet(APP_QSS)
-    window = ReceiptMainWindow()
+
+    try:
+        window = ReceiptMainWindow()
+    except (SecureKeyStoreError, DatabaseEncryptionError) as exc:
+        QMessageBox.critical(
+            None,
+            "ReceiptFlow security error",
+            str(exc)
+            + "\n\nReceiptFlow has stopped rather than creating or overwriting a database.",
+        )
+        return 1
+
     if not window.settings.start_minimised:
         window.show()
     if window.settings.show_desktop_tab_on_launch:
