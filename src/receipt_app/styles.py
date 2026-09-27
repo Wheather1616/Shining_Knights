@@ -494,4 +494,165 @@ QPushButton#MiniDeleteButton:hover {
     color: #ffffff;
     border-color: #dc2626;
 }
+
+
+/* Settings page */
+
+QWidget#SettingsPage,
+QWidget#SettingsContent,
+QScrollArea#SettingsScroll,
+QScrollArea#SettingsScroll > QWidget > QWidget {
+    background: #f6f8fb;
+}
+
+QScrollArea#SettingsScroll {
+    border: none;
+}
+
+QFrame#SettingsCard {
+    background: #ffffff;
+    border: 1px solid #d8dee7;
+    border-radius: 18px;
+}
+
+QFrame#SettingsCard QLabel,
+QFrame#SettingsCard QCheckBox {
+    background: transparent;
+}
+
+QLabel#SettingsCardTitle {
+    background: transparent;
+    color: #17202f;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+QLabel#SettingsHelper {
+    background: transparent;
+    color: #667085;
+    font-size: 13px;
+}
+
+QLabel#SettingsMiniLabel {
+    background: transparent;
+    color: #475467;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#SecurityStatus {
+    background: #ecfdf3;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 9px 11px;
+    font-weight: 700;
+}
+
+QLineEdit#ReadOnlySetting {
+    background: #f8fafc;
+    color: #475467;
+    border: 1px solid #e2e8f0;
+}
+
+QTableWidget#SettingsFieldsTable {
+    background: #ffffff;
+    alternate-background-color: #ffffff;
+    border: 1px solid #d8dee7;
+    border-radius: 12px;
+    gridline-color: #edf0f4;
+    selection-background-color: #eef4ff;
+    selection-color: #17202f;
+}
+
+QTableWidget#SettingsFieldsTable::item {
+    padding: 8px;
+}
+
+QTableWidget#SettingsFieldsTable QCheckBox {
+    background: transparent;
+}
+
+
+
+/* Browse model/view table */
+
+QTableView#BrowseTableView {
+    background: #ffffff;
+    alternate-background-color: #f8fbff;
+    border: 1px solid #d8dee7;
+    border-radius: 14px;
+    gridline-color: #edf0f4;
+    selection-background-color: #eef4ff;
+    selection-color: #17202f;
+    outline: 0;
+}
+
+QTableView#BrowseTableView::item {
+    padding: 7px 9px;
+}
+
+QTableView#BrowseTableView::item:selected {
+    background: #eef4ff;
+    color: #17202f;
+}
+
+QPushButton#PaginationButton {
+    min-width: 82px;
+    padding: 7px 12px;
+    min-height: 22px;
+    border-radius: 10px;
+}
+
+QLabel#PaginationStatus {
+    color: #667085;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+
+
+/* Products & pricing settings */
+
+QTableWidget#ProductCatalogTable {
+    background: #ffffff;
+    alternate-background-color: #ffffff;
+    border: 1px solid #d8dee7;
+    border-radius: 12px;
+    gridline-color: #edf0f4;
+    selection-background-color: #eef4ff;
+    selection-color: #17202f;
+}
+
+QTableWidget#ProductCatalogTable::item {
+    padding: 8px;
+}
+
+QTableWidget#ProductCatalogTable QDoubleSpinBox {
+    min-width: 110px;
+}
+
+
+
+/* Payment surcharge */
+
+QLabel#SurchargeHint {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    border-radius: 9px;
+    padding: 7px 9px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#SurchargePreview {
+    background: #f8fafc;
+    color: #475467;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 9px 11px;
+    font-size: 12px;
+}
+
 """

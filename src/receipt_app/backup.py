@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import os
 from pathlib import Path
 
 from .db_crypto import (
@@ -54,14 +55,15 @@ class DatabaseBackupManager:
                 # when the recovery point was created, not when it was encrypted.
                 try:
                     backup.touch(exist_ok=True)
-                    import os
                     os.utime(backup, (stat.st_atime, stat.st_mtime))
                 except OSError:
                     pass
                 migrated.append(backup)
-            else:
-                # Do not silently accept an unreadable encrypted file.
-                verify_encrypted_database(backup, self.key_hex)
+            # Existing encrypted backups were verified when they were created.
+            # Re-running full SQLite + SQLCipher integrity checks across every
+            # historical snapshot on every app launch adds startup cost without
+            # improving the safety of the live database. Plaintext backups are
+            # still detected and migrated here.
         return migrated
 
     def create_backup(self) -> Path:
@@ -77,27 +79,35 @@ class DatabaseBackupManager:
             backup_path = self.backup_dir / f"receipts_{timestamp}_{counter:02d}.db"
             counter += 1
 
+        # Build the snapshot under a temporary name, verify it, then publish it
+        # atomically. A crash or forced shutdown can therefore leave at worst a
+        # .tmp file, never a corrupt file that looks like a valid recovery point.
+        temp_path = backup_path.with_name(backup_path.name + ".tmp")
+        temp_path.unlink(missing_ok=True)
+
         source = open_encrypted_connection(self.db_path, self.key_hex, validate=True)
-        destination = open_encrypted_connection(backup_path, self.key_hex, validate=False)
+        destination = open_encrypted_connection(temp_path, self.key_hex, validate=False)
 
         try:
             # SQLCipher supports online encrypted->encrypted backup. Both source and
             # destination are keyed before the backup API is invoked.
             source.backup(destination)
         except Exception:
-            backup_path.unlink(missing_ok=True)
+            temp_path.unlink(missing_ok=True)
             raise
         finally:
             destination.close()
             source.close()
 
-        verify_encrypted_database(backup_path, self.key_hex)
         try:
-            import os
+            verify_encrypted_database(temp_path, self.key_hex)
             if os.name == "posix":
-                backup_path.chmod(0o600)
-        except OSError:
-            pass
+                temp_path.chmod(0o600)
+            os.replace(temp_path, backup_path)
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
+
         return backup_path
 
     def create_backup_if_due(

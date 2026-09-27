@@ -209,6 +209,43 @@ class ReceiptDatabase:
         with self.connect() as conn:
             return conn.execute("SELECT * FROM receipts WHERE id = ?", (receipt_id,)).fetchone()
 
+    def next_receipt_number(self) -> str:
+        """Return the next sequential numeric receipt number.
+
+        All stored receipts are considered, including items in Trash, so a number is
+        never reused simply because a receipt was soft-deleted. Non-numeric receipt
+        numbers are ignored. Leading zero padding from the highest number is preserved.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT receipt_no
+                FROM receipts
+                WHERE TRIM(COALESCE(receipt_no, '')) <> ''
+                """
+            ).fetchall()
+
+        highest_value: int | None = None
+        highest_width = 0
+
+        for row in rows:
+            receipt_no = str(row["receipt_no"] or "").strip()
+            if not receipt_no.isdigit():
+                continue
+
+            value = int(receipt_no)
+            if highest_value is None or value > highest_value:
+                highest_value = value
+                highest_width = len(receipt_no)
+            elif value == highest_value:
+                highest_width = max(highest_width, len(receipt_no))
+
+        if highest_value is None:
+            return "1"
+
+        next_value = str(highest_value + 1)
+        return next_value.zfill(highest_width)
+
     def update_receipt(self, receipt_id: int, record: ReceiptRecord) -> bool:
         now = datetime.now().isoformat(timespec="seconds")
         custom_fields = record.custom_fields or {}
@@ -285,56 +322,123 @@ class ReceiptDatabase:
             conn.commit()
             return cursor.rowcount > 0
     
-    def search(
+    def browse_page(
         self,
         query: str = "",
         sort: str = "Newest first",
-        limit: int = 500,
-    ) -> list[sqlite3.Row]:
-        """Search active (non-trashed) receipts only."""
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[sqlite3.Row], int]:
+        """Return one Browse page plus the total number of matching active receipts.
+
+        Paging is performed inside SQLite/SQLCipher so the UI only materialises the
+        rows it needs. Count and page queries share one encrypted connection.
+        """
         order_by = SORT_OPTIONS.get(sort, SORT_OPTIONS["Newest first"])
         query = query.strip()
+        limit = max(1, min(int(limit or 100), 500))
+        offset = max(0, int(offset or 0))
 
         with self.connect() as conn:
             if query:
                 try:
                     fts_query = self._to_fts_query(query)
-                    return conn.execute(
-                        f"""
-                        SELECT receipts.*
-                        FROM receipts_fts
-                        JOIN receipts ON receipts_fts.rowid = receipts.id
-                        WHERE receipts_fts MATCH ?
-                          AND receipts.deleted_at IS NULL
-                        ORDER BY {order_by}
-                        LIMIT ?
+                    total_row = conn.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM receipts
+                        WHERE deleted_at IS NULL
+                          AND id IN (
+                              SELECT rowid
+                              FROM receipts_fts
+                              WHERE receipts_fts MATCH ?
+                          )
                         """,
-                        (fts_query, limit),
+                        (fts_query,),
+                    ).fetchone()
+                    total = int(total_row[0]) if total_row else 0
+
+                    rows = conn.execute(
+                        f"""
+                        SELECT *
+                        FROM receipts
+                        WHERE deleted_at IS NULL
+                          AND id IN (
+                              SELECT rowid
+                              FROM receipts_fts
+                              WHERE receipts_fts MATCH ?
+                          )
+                        ORDER BY {order_by}
+                        LIMIT ? OFFSET ?
+                        """,
+                        (fts_query, limit, offset),
                     ).fetchall()
+                    return rows, total
                 except sqlite3.OperationalError:
+                    # FTS5 is optional. Fall back to the maintained search_text field.
                     like = f"%{query.lower()}%"
-                    return conn.execute(
+                    total_row = conn.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM receipts
+                        WHERE deleted_at IS NULL
+                          AND LOWER(search_text) LIKE ?
+                        """,
+                        (like,),
+                    ).fetchone()
+                    total = int(total_row[0]) if total_row else 0
+
+                    rows = conn.execute(
                         f"""
                         SELECT *
                         FROM receipts
                         WHERE deleted_at IS NULL
                           AND LOWER(search_text) LIKE ?
                         ORDER BY {order_by}
-                        LIMIT ?
+                        LIMIT ? OFFSET ?
                         """,
-                        (like, limit),
+                        (like, limit, offset),
                     ).fetchall()
+                    return rows, total
 
-            return conn.execute(
+            total_row = conn.execute(
+                "SELECT COUNT(*) FROM receipts WHERE deleted_at IS NULL"
+            ).fetchone()
+            total = int(total_row[0]) if total_row else 0
+            rows = conn.execute(
                 f"""
                 SELECT *
                 FROM receipts
                 WHERE deleted_at IS NULL
                 ORDER BY {order_by}
-                LIMIT ?
+                LIMIT ? OFFSET ?
                 """,
-                (limit,),
+                (limit, offset),
             ).fetchall()
+            return rows, total
+
+    def search(
+        self,
+        query: str = "",
+        sort: str = "Newest first",
+        limit: int = 500,
+    ) -> list[sqlite3.Row]:
+        """Compatibility wrapper returning the first page of active receipts."""
+        rows, _total = self.browse_page(
+            query=query,
+            sort=sort,
+            limit=limit,
+            offset=0,
+        )
+        return rows
+
+    def count_active_receipts(self) -> int:
+        """Count active receipts without materialising every database row."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM receipts WHERE deleted_at IS NULL"
+            ).fetchone()
+            return int(row[0]) if row else 0
 
     def trashed_receipts(self, limit: int = 500) -> list[sqlite3.Row]:
         """Return soft-deleted receipts, newest deletion first."""
