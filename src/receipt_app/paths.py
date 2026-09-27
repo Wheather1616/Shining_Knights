@@ -40,6 +40,11 @@ def default_db_path() -> Path:
     return app_support_dir() / "data" / "receipts.db"
 
 
+
+def default_backup_dir() -> Path:
+    """Return the local folder used for automatic database snapshots."""
+    return app_support_dir() / "backups"
+
 def default_import_folder() -> Path:
     downloads = Path.home() / "Downloads"
 

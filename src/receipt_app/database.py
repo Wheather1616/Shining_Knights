@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import json
-import sqlite3
+from sqlcipher3 import dbapi2 as sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
 from .config import CORE_FIELD_KEYS, FieldDefinition
+from .db_crypto import (
+    is_plaintext_sqlite,
+    migrate_plaintext_database,
+    open_encrypted_connection,
+    verify_encrypted_database,
+)
+from .security import SecureKeyStore
 
 SORT_OPTIONS: dict[str, str] = {
     "Newest first": "transaction_date DESC, id DESC",
@@ -52,13 +59,32 @@ class ReceiptDatabase:
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # The key exists only in the OS credential store and process memory.
+        self.key_hex = SecureKeyStore().get_or_create_database_key()
+
+        # Existing ReceiptFlow installations used plaintext SQLite. Migrate them
+        # once, only after an encrypted copy has been created and verified.
+        if self.db_path.exists() and self.db_path.stat().st_size > 0:
+            if is_plaintext_sqlite(self.db_path):
+                migrate_plaintext_database(self.db_path, self.key_hex)
+            else:
+                verify_encrypted_database(self.db_path, self.key_hex)
+
         self.initialise()
+        if __import__("os").name == "posix":
+            try:
+                self.db_path.chmod(0o600)
+            except OSError:
+                pass
 
     def connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
+        return open_encrypted_connection(self.db_path, self.key_hex, validate=True)
+
+    def cipher_version(self) -> str:
+        with self.connect() as conn:
+            row = conn.execute("PRAGMA cipher_version").fetchone()
+            return str(row[0]) if row and row[0] else "unknown"
 
     def initialise(self) -> None:
         with self.connect() as conn:
@@ -87,8 +113,27 @@ class ReceiptDatabase:
                 CREATE INDEX IF NOT EXISTS idx_receipts_member_no ON receipts(member_no);
                 """
             )
+            self._ensure_column(conn, "receipts", "deleted_at", "TEXT")
+            self._ensure_column(conn, "receipts", "deleted_reason", "TEXT")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_receipts_deleted_at ON receipts(deleted_at)"
+            )
             self._initialise_fts(conn)
             conn.commit()
+
+    def _ensure_column(
+        self,
+        conn: sqlite3.Connection,
+        table: str,
+        column: str,
+        definition: str,
+    ) -> None:
+        existing = {
+            row["name"]
+            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def _initialise_fts(self, conn: sqlite3.Connection) -> None:
         try:
@@ -164,6 +209,43 @@ class ReceiptDatabase:
         with self.connect() as conn:
             return conn.execute("SELECT * FROM receipts WHERE id = ?", (receipt_id,)).fetchone()
 
+    def next_receipt_number(self) -> str:
+        """Return the next sequential numeric receipt number.
+
+        All stored receipts are considered, including items in Trash, so a number is
+        never reused simply because a receipt was soft-deleted. Non-numeric receipt
+        numbers are ignored. Leading zero padding from the highest number is preserved.
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT receipt_no
+                FROM receipts
+                WHERE TRIM(COALESCE(receipt_no, '')) <> ''
+                """
+            ).fetchall()
+
+        highest_value: int | None = None
+        highest_width = 0
+
+        for row in rows:
+            receipt_no = str(row["receipt_no"] or "").strip()
+            if not receipt_no.isdigit():
+                continue
+
+            value = int(receipt_no)
+            if highest_value is None or value > highest_value:
+                highest_value = value
+                highest_width = len(receipt_no)
+            elif value == highest_value:
+                highest_width = max(highest_width, len(receipt_no))
+
+        if highest_value is None:
+            return "1"
+
+        next_value = str(highest_value + 1)
+        return next_value.zfill(highest_width)
+
     def update_receipt(self, receipt_id: int, record: ReceiptRecord) -> bool:
         now = datetime.now().isoformat(timespec="seconds")
         custom_fields = record.custom_fields or {}
@@ -184,6 +266,7 @@ class ReceiptDatabase:
                     search_text = ?,
                     updated_at = ?
                 WHERE id = ?
+                  AND deleted_at IS NULL
                 """,
                 (
                     record.receipt_no,
@@ -204,37 +287,172 @@ class ReceiptDatabase:
             return cursor.rowcount > 0
 
     def delete_receipt(self, receipt_id: int) -> bool:
+        now = datetime.now().isoformat(timespec="seconds")
+
         with self.connect() as conn:
-            cursor = conn.execute("DELETE FROM receipts WHERE id = ?", (receipt_id,))
+            cursor = conn.execute(
+                """
+                UPDATE receipts
+                SET deleted_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                AND deleted_at IS NULL
+                """,
+                (now, now, receipt_id),
+            )
+
             conn.commit()
             return cursor.rowcount > 0
 
-    def search(self, query: str = "", sort: str = "Newest first", limit: int = 500) -> list[sqlite3.Row]:
+    def restore_receipt(self, receipt_id: int) -> bool:
+        now = datetime.now().isoformat(timespec="seconds")
+
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE receipts
+                SET deleted_at = NULL,
+                    deleted_reason = NULL,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (now, receipt_id),
+            )
+
+            conn.commit()
+            return cursor.rowcount > 0
+    
+    def browse_page(
+        self,
+        query: str = "",
+        sort: str = "Newest first",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[sqlite3.Row], int]:
+        """Return one Browse page plus the total number of matching active receipts.
+
+        Paging is performed inside SQLite/SQLCipher so the UI only materialises the
+        rows it needs. Count and page queries share one encrypted connection.
+        """
         order_by = SORT_OPTIONS.get(sort, SORT_OPTIONS["Newest first"])
         query = query.strip()
+        limit = max(1, min(int(limit or 100), 500))
+        offset = max(0, int(offset or 0))
+
         with self.connect() as conn:
             if query:
                 try:
                     fts_query = self._to_fts_query(query)
+                    total_row = conn.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM receipts
+                        WHERE deleted_at IS NULL
+                          AND id IN (
+                              SELECT rowid
+                              FROM receipts_fts
+                              WHERE receipts_fts MATCH ?
+                          )
+                        """,
+                        (fts_query,),
+                    ).fetchone()
+                    total = int(total_row[0]) if total_row else 0
+
                     rows = conn.execute(
                         f"""
-                        SELECT receipts.*
-                        FROM receipts_fts
-                        JOIN receipts ON receipts_fts.rowid = receipts.id
-                        WHERE receipts_fts MATCH ?
+                        SELECT *
+                        FROM receipts
+                        WHERE deleted_at IS NULL
+                          AND id IN (
+                              SELECT rowid
+                              FROM receipts_fts
+                              WHERE receipts_fts MATCH ?
+                          )
                         ORDER BY {order_by}
-                        LIMIT ?
+                        LIMIT ? OFFSET ?
                         """,
-                        (fts_query, limit),
+                        (fts_query, limit, offset),
                     ).fetchall()
-                    return rows
+                    return rows, total
                 except sqlite3.OperationalError:
+                    # FTS5 is optional. Fall back to the maintained search_text field.
                     like = f"%{query.lower()}%"
-                    return conn.execute(
-                        f"SELECT * FROM receipts WHERE LOWER(search_text) LIKE ? ORDER BY {order_by} LIMIT ?",
-                        (like, limit),
+                    total_row = conn.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM receipts
+                        WHERE deleted_at IS NULL
+                          AND LOWER(search_text) LIKE ?
+                        """,
+                        (like,),
+                    ).fetchone()
+                    total = int(total_row[0]) if total_row else 0
+
+                    rows = conn.execute(
+                        f"""
+                        SELECT *
+                        FROM receipts
+                        WHERE deleted_at IS NULL
+                          AND LOWER(search_text) LIKE ?
+                        ORDER BY {order_by}
+                        LIMIT ? OFFSET ?
+                        """,
+                        (like, limit, offset),
                     ).fetchall()
-            return conn.execute(f"SELECT * FROM receipts ORDER BY {order_by} LIMIT ?", (limit,)).fetchall()
+                    return rows, total
+
+            total_row = conn.execute(
+                "SELECT COUNT(*) FROM receipts WHERE deleted_at IS NULL"
+            ).fetchone()
+            total = int(total_row[0]) if total_row else 0
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM receipts
+                WHERE deleted_at IS NULL
+                ORDER BY {order_by}
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+            return rows, total
+
+    def search(
+        self,
+        query: str = "",
+        sort: str = "Newest first",
+        limit: int = 500,
+    ) -> list[sqlite3.Row]:
+        """Compatibility wrapper returning the first page of active receipts."""
+        rows, _total = self.browse_page(
+            query=query,
+            sort=sort,
+            limit=limit,
+            offset=0,
+        )
+        return rows
+
+    def count_active_receipts(self) -> int:
+        """Count active receipts without materialising every database row."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM receipts WHERE deleted_at IS NULL"
+            ).fetchone()
+            return int(row[0]) if row else 0
+
+    def trashed_receipts(self, limit: int = 500) -> list[sqlite3.Row]:
+        """Return soft-deleted receipts, newest deletion first."""
+        with self.connect() as conn:
+            return conn.execute(
+                """
+                SELECT *
+                FROM receipts
+                WHERE deleted_at IS NOT NULL
+                ORDER BY deleted_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
 
     def _to_fts_query(self, query: str) -> str:
         tokens = [token.strip('"*:()') for token in query.split() if token.strip('"*:()')]
@@ -250,6 +468,7 @@ class ReceiptDatabase:
                 SELECT *
                 FROM receipts
                 WHERE transaction_date = ?
+                  AND deleted_at IS NULL
                 ORDER BY created_at DESC, id DESC
                 LIMIT ?
                 """,
