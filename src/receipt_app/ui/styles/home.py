@@ -3,6 +3,13 @@
 from .tokens import themed
 
 HOME_QSS = themed(r'''
+QScrollArea#HomeScroll,
+QScrollArea#HomeScroll > QWidget > QWidget,
+QWidget#HomeContent {
+    background: @canvas@;
+    border: none;
+}
+
 QLabel#HomeDisplayTitle {
     font-size: 42px;
 }
@@ -14,10 +21,6 @@ QLabel#HomeLead {
 QFrame#HomeHeroCard,
 QFrame#HomeFeatureCard {
     border-radius: @radius_large@;
-}
-
-QFrame#HomeHeroCard {
-    min-height: 280px;
 }
 
 QLabel#HomeBadge {

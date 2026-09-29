@@ -37,9 +37,12 @@ class Sidebar(QFrame):
         self,
         db_path: str | Path,
         parent: QWidget | None = None,
+        *,
+        database_connected: bool = True,
     ) -> None:
         super().__init__(parent)
         self._db_path = Path(db_path)
+        self._database_connected = bool(database_connected)
         self._page_buttons: dict[int, QPushButton] = {}
 
         self.setObjectName("BrandSidebar")
@@ -109,8 +112,24 @@ class Sidebar(QFrame):
         status_layout.setContentsMargins(18, 16, 18, 16)
         status_layout.setSpacing(8)
 
-        db_status = QLabel("Database connected")
-        db_status.setObjectName("SidebarStatusTitle")
+        status_title_row = QHBoxLayout()
+        status_title_row.setContentsMargins(0, 0, 0, 0)
+        status_title_row.setSpacing(8)
+
+        self.database_status_dot = QFrame()
+        self.database_status_dot.setObjectName("SidebarStatusDot")
+        self.database_status_dot.setFixedSize(9, 9)
+
+        self.database_status_label = QLabel("")
+        self.database_status_label.setObjectName("SidebarStatusTitle")
+
+        status_title_row.addWidget(
+            self.database_status_dot,
+            0,
+            Qt.AlignmentFlag.AlignVCenter,
+        )
+        status_title_row.addWidget(self.database_status_label, 1)
+
         db_storage = QLabel("Local encrypted storage")
         db_storage.setObjectName("SidebarStatusMeta")
 
@@ -119,7 +138,7 @@ class Sidebar(QFrame):
         view_location_btn.clicked.connect(self._open_database_location)
         apply_button_icon(view_location_btn, "folder", role="inverse", size=14)
 
-        status_layout.addWidget(db_status)
+        status_layout.addLayout(status_title_row)
         status_layout.addWidget(db_storage)
         status_layout.addSpacing(2)
         status_layout.addWidget(
@@ -129,6 +148,7 @@ class Sidebar(QFrame):
         )
         layout.addWidget(status_card)
 
+        self.set_database_connected(self._database_connected)
         self.set_current_page(self.HOME_PAGE)
 
     def _page_button(self, text: str, page_index: int) -> QPushButton:
@@ -160,6 +180,29 @@ class Sidebar(QFrame):
             button.setChecked(index == page_index)
             button.style().unpolish(button)
             button.style().polish(button)
+
+    def set_database_connected(self, connected: bool) -> None:
+        """Update the sidebar database connection indicator.
+
+        The sidebar intentionally does not probe the database itself. The main
+        application owns the database connection and can call this method whenever
+        its connection/health state changes.
+        """
+        self._database_connected = bool(connected)
+        self.database_status_dot.setProperty(
+            "connected",
+            self._database_connected,
+        )
+        self.database_status_label.setText(
+            "Database connected"
+            if self._database_connected
+            else "Database unavailable"
+        )
+
+        # Dynamic Qt properties need a repolish before property selectors update.
+        self.database_status_dot.style().unpolish(self.database_status_dot)
+        self.database_status_dot.style().polish(self.database_status_dot)
+        self.database_status_dot.update()
 
     def set_database_path(self, db_path: str | Path) -> None:
         """Update the displayed database location without rebuilding the sidebar."""

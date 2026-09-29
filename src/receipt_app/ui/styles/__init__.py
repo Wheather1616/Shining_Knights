@@ -5,6 +5,7 @@ from .common import COMMON_QSS
 from .shell import SHELL_QSS
 from .home import HOME_QSS
 from .browse import BROWSE_QSS
+from .trash import TRASH_QSS
 from .settings import SETTINGS_CORE_QSS, SETTINGS_CATALOG_QSS, SETTINGS_SURCHARGE_QSS
 from .receipt import RECEIPT_QSS
 from .desktop import DESKTOP_QSS
@@ -15,6 +16,7 @@ STYLE_LAYERS = (
     SHELL_QSS,
     HOME_QSS,
     BROWSE_QSS,
+    TRASH_QSS,
     SETTINGS_CORE_QSS,
     SETTINGS_CATALOG_QSS,
     SETTINGS_SURCHARGE_QSS,
@@ -32,6 +34,7 @@ __all__ = [
     "SHELL_QSS",
     "HOME_QSS",
     "BROWSE_QSS",
+    "TRASH_QSS",
     "SETTINGS_CORE_QSS",
     "SETTINGS_CATALOG_QSS",
     "SETTINGS_SURCHARGE_QSS",

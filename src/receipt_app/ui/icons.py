@@ -36,6 +36,7 @@ ICON_DIR_CANDIDATES = (
 
 # UI code should only use these semantic names.
 ICON_FILES: dict[str, str] = {
+    # Primary navigation / Home
     "home": "home.svg",
     "browse": "search.svg",
     "search": "search.svg",
@@ -43,6 +44,13 @@ ICON_FILES: dict[str, str] = {
     "add": "add.svg",
     "desktop": "computer.svg",
     "settings": "settings-sliders.svg",
+
+    # Settings sections
+    "security": "shield-check.svg",
+    "behaviour": "apps.svg",
+    "payment": "credit-card.svg",
+    "product": "tags.svg",
+    "fields": "document.svg",
 }
 
 # Brand-aware colour roles.  Add new roles here rather than hard-coding colours

@@ -9,11 +9,11 @@ QLabel#SettingsAccentIcon {
     background: @amethyst_soft@;
     color: @amethyst@;
     border: 1px solid @amethyst_border@;
-    border-radius: 12px;
-    min-width: 26px;
-    max-width: 26px;
-    min-height: 26px;
-    max-height: 26px;
+    border-radius: 15px;
+    min-width: 30px;
+    max-width: 30px;
+    min-height: 30px;
+    max-height: 30px;
     qproperty-alignment: AlignCenter;
 }
 

@@ -2,7 +2,7 @@
 
 from .tokens import themed
 
-SHELL_QSS = themed(r'''
+SHELL_QSS = themed(r"""
 QFrame#BrandSidebar {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 #5c0a12,
@@ -52,6 +52,20 @@ QFrame#SidebarStatusCard {
     border-radius: @radius_card@;
 }
 
+QFrame#SidebarStatusDot {
+    background: rgba(255, 247, 244, 0.34);
+    border: none;
+    border-radius: 4px;
+}
+
+QFrame#SidebarStatusDot[connected="true"] {
+    background: #55c98b;
+}
+
+QFrame#SidebarStatusDot[connected="false"] {
+    background: rgba(255, 247, 244, 0.34);
+}
+
 QLabel#SidebarStatusTitle {
     color: @white@;
     font-family: @font_regular@;
@@ -85,4 +99,4 @@ QPushButton#SidebarLinkButton:hover {
     background: transparent;
     border: none;
 }
-''')
+""")
