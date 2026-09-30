@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from datetime import date, datetime
+
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -38,6 +40,7 @@ class HomePage(QWidget):
         self._vertical_mode: str | None = None
         self._feature_cards: list[QFrame] = []
         self._feature_layouts: list[QVBoxLayout] = []
+        self._total_receipts = 0
 
         # The Home screen now has a single outer scroll area. This guarantees
         # that a shorter non-full-screen window never forces neighbouring cards
@@ -167,24 +170,108 @@ class HomePage(QWidget):
         )
         self.content_layout.addLayout(self.feature_row)
 
-        self.footer = QFrame()
-        self.footer.setObjectName("HomeFooter")
-        self.footer_layout = QHBoxLayout(self.footer)
-        self.footer_layout.setContentsMargins(0, 14, 0, 0)
-        self.footer_layout.setSpacing(14)
+        # Operational summary ---------------------------------------------
+        self.summary_card = QFrame()
+        self.summary_card.setObjectName("HomeSummaryCard")
+        self.summary_layout = QVBoxLayout(self.summary_card)
+        self.summary_layout.setContentsMargins(20, 18, 20, 18)
+        self.summary_layout.setSpacing(14)
 
-        self.summary_label = QLabel("")
-        self.summary_label.setObjectName("HomeFooterStat")
-        footer_note = QLabel("All data is stored securely on your device.")
-        footer_note.setObjectName("HomeFooterNote")
-        footer_note.setWordWrap(True)
-        self.footer_layout.addWidget(self.summary_label)
-        self.footer_layout.addWidget(footer_note)
-        self.footer_layout.addStretch()
-        self.content_layout.addWidget(self.footer)
+        summary_header = QHBoxLayout()
+        summary_header.setContentsMargins(0, 0, 0, 0)
+        summary_header.setSpacing(12)
+
+        summary_title = QLabel("TODAY'S ACTIVITY")
+        summary_title.setObjectName("HomeSummaryEyebrow")
+        self.summary_date_label = QLabel("")
+        self.summary_date_label.setObjectName("HomeSummaryDate")
+        self.summary_total_database_label = QLabel("")
+        self.summary_total_database_label.setObjectName("HomeSummaryDatabaseTotal")
+
+        summary_header.addWidget(summary_title)
+        summary_header.addWidget(self.summary_date_label)
+        summary_header.addStretch()
+        summary_header.addWidget(self.summary_total_database_label)
+        self.summary_layout.addLayout(summary_header)
+
+        self.summary_metrics_row = QHBoxLayout()
+        self.summary_metrics_row.setContentsMargins(0, 0, 0, 0)
+        self.summary_metrics_row.setSpacing(12)
+
+        self.today_metric, self.today_value_label, self.today_meta_label = (
+            self._summary_metric(
+                "RECEIPTS",
+                "0 receipts · $0.00",
+                "No receipts recorded today",
+                accent="coral",
+            )
+        )
+        self.payment_metric, self.payment_value_label, self.payment_meta_label = (
+            self._summary_metric(
+                "PAYMENTS",
+                "No payments yet",
+                "Today's payment mix",
+                accent="cyan",
+            )
+        )
+        self.backup_metric, self.backup_value_label, self.backup_meta_label = (
+            self._summary_metric(
+                "LAST BACKUP",
+                "Checking…",
+                "Automatic encrypted backup",
+                accent="amethyst",
+            )
+        )
+
+        self.summary_metrics_row.addWidget(self.today_metric, 1)
+        self.summary_metrics_row.addWidget(self.payment_metric, 2)
+        self.summary_metrics_row.addWidget(self.backup_metric, 1)
+        self.summary_layout.addLayout(self.summary_metrics_row)
+
+        self.content_layout.addWidget(self.summary_card)
         self.content_layout.addStretch()
 
+        QTimer.singleShot(0, self.refresh_operational_summary)
+        self.backup_age_timer = QTimer(self)
+        self.backup_age_timer.setInterval(60 * 1000)
+        self.backup_age_timer.timeout.connect(self._refresh_backup_status)
+        self.backup_age_timer.start()
+
         self._apply_vertical_mode(force=True)
+
+    def _summary_metric(
+        self,
+        heading: str,
+        value: str,
+        meta: str,
+        *,
+        accent: str,
+    ) -> tuple[QFrame, QLabel, QLabel]:
+        card = QFrame()
+        card.setObjectName("HomeSummaryMetric")
+        card.setProperty("accent", accent)
+
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 13, 16, 13)
+        layout.setSpacing(4)
+
+        heading_label = QLabel(heading)
+        heading_label.setObjectName("HomeSummaryMetricLabel")
+        heading_label.setProperty("accent", accent)
+
+        value_label = QLabel(value)
+        value_label.setObjectName("HomeSummaryMetricValue")
+        value_label.setWordWrap(True)
+
+        meta_label = QLabel(meta)
+        meta_label.setObjectName("HomeSummaryMetricMeta")
+        meta_label.setWordWrap(True)
+
+        layout.addWidget(heading_label)
+        layout.addWidget(value_label)
+        layout.addWidget(meta_label)
+        layout.addStretch()
+        return card, value_label, meta_label
 
     def _action_card(
         self,
@@ -277,7 +364,9 @@ class HomePage(QWidget):
             feature_min_height = 172
             feature_margins = (18, 16, 18, 16)
             feature_spacing = 8
-            footer_top = 9
+            summary_margins = (14, 12, 14, 12)
+            summary_spacing = 8
+            metric_margins = (12, 10, 12, 10)
             feature_row_spacing = 14
         elif mode == "compact":
             page_margins = (36, 24, 36, 20)
@@ -290,7 +379,9 @@ class HomePage(QWidget):
             feature_min_height = 188
             feature_margins = (20, 18, 20, 18)
             feature_spacing = 10
-            footer_top = 10
+            summary_margins = (16, 14, 16, 14)
+            summary_spacing = 10
+            metric_margins = (14, 11, 14, 11)
             feature_row_spacing = 16
         else:
             page_margins = (38, 34, 38, 28)
@@ -303,7 +394,9 @@ class HomePage(QWidget):
             feature_min_height = 205
             feature_margins = (24, 22, 24, 22)
             feature_spacing = 12
-            footer_top = 14
+            summary_margins = (20, 18, 20, 18)
+            summary_spacing = 14
+            metric_margins = (16, 13, 16, 13)
             feature_row_spacing = 18
 
         self.content_layout.setContentsMargins(*page_margins)
@@ -314,7 +407,13 @@ class HomePage(QWidget):
         self.hero_card.setMinimumHeight(hero_min_height)
         self.illustration_art.setMinimumSize(*illustration_min)
         self.feature_row.setSpacing(feature_row_spacing)
-        self.footer_layout.setContentsMargins(0, footer_top, 0, 0)
+        self.summary_layout.setContentsMargins(*summary_margins)
+        self.summary_layout.setSpacing(summary_spacing)
+
+        for metric in (self.today_metric, self.payment_metric, self.backup_metric):
+            metric_layout = metric.layout()
+            if metric_layout is not None:
+                metric_layout.setContentsMargins(*metric_margins)
 
         for card, card_layout in zip(self._feature_cards, self._feature_layouts):
             card.setMinimumHeight(feature_min_height)
@@ -327,5 +426,117 @@ class HomePage(QWidget):
         self.style().polish(self)
         self.updateGeometry()
 
+    def _data_sources(self):
+        """Return app-owned database and backup services when available."""
+        owner = self.window()
+        return getattr(owner, "db", None), getattr(owner, "backup_manager", None)
+
+    @staticmethod
+    def _money(value: float) -> str:
+        return f"${float(value):,.2f}"
+
+    @staticmethod
+    def _backup_age_text(timestamp: datetime) -> str:
+        seconds = max(0, int((datetime.now() - timestamp).total_seconds()))
+        if seconds < 60:
+            return "Just now"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"{minutes} min ago" if minutes == 1 else f"{minutes} mins ago"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours} hr ago" if hours == 1 else f"{hours} hrs ago"
+        days = hours // 24
+        return "Yesterday" if days == 1 else f"{days} days ago"
+
+    def _refresh_backup_status(self) -> None:
+        _db, backup_manager = self._data_sources()
+        if backup_manager is None:
+            self.backup_value_label.setText("Unavailable")
+            return
+        try:
+            latest = backup_manager.latest_backup()
+        except Exception:
+            self.backup_value_label.setText("Unavailable")
+            return
+        if latest is None:
+            self.backup_value_label.setText("No backup yet")
+            return
+        try:
+            timestamp = datetime.fromtimestamp(latest.stat().st_mtime)
+        except OSError:
+            self.backup_value_label.setText("Unavailable")
+            return
+        self.backup_value_label.setText(self._backup_age_text(timestamp))
+
+    def refresh_operational_summary(self) -> None:
+        """Refresh today's receipt, payment and backup summary."""
+        today = date.today()
+        self.summary_date_label.setText(today.strftime("%A · %d %B %Y"))
+        self.summary_total_database_label.setText(
+            f"{self._total_receipts:,} receipt"
+            f"{'s' if self._total_receipts != 1 else ''} in database"
+        )
+
+        db, _backup_manager = self._data_sources()
+        if db is None:
+            self.today_value_label.setText("Unavailable")
+            self.payment_value_label.setText("Unavailable")
+            self._refresh_backup_status()
+            return
+
+        try:
+            rows = list(db.receipts_for_date(today.isoformat(), limit=10_000))
+            if not rows:
+                legacy_date = today.strftime("%d/%m/%Y")
+                rows = list(db.receipts_for_date(legacy_date, limit=10_000))
+        except Exception:
+            self.today_value_label.setText("Unavailable")
+            self.payment_value_label.setText("Unavailable")
+            self._refresh_backup_status()
+            return
+
+        receipt_count = len(rows)
+        total_amount = 0.0
+        payment_totals: dict[str, float] = {}
+        for row in rows:
+            try:
+                amount = float(row["amount"] or 0)
+            except (TypeError, ValueError):
+                amount = 0.0
+            total_amount += amount
+            payment_type = str(row["payment_type"] or "").strip() or "Other"
+            payment_totals[payment_type] = payment_totals.get(payment_type, 0.0) + amount
+
+        self.today_value_label.setText(
+            f"{receipt_count:,} receipt{'s' if receipt_count != 1 else ''} · {self._money(total_amount)}"
+        )
+        self.today_meta_label.setText(
+            "Recorded today" if receipt_count else "No receipts recorded today"
+        )
+
+        preferred_order = ("Eftpos", "Cash", "MOTO", "Direct Debit")
+        payment_parts: list[str] = []
+        consumed: set[str] = set()
+        for payment_type in preferred_order:
+            amount = payment_totals.get(payment_type, 0.0)
+            if amount:
+                payment_parts.append(f"{payment_type} {self._money(amount)}")
+                consumed.add(payment_type)
+
+        other_total = sum(
+            amount for payment_type, amount in payment_totals.items()
+            if payment_type not in consumed
+        )
+        if other_total:
+            payment_parts.append(f"Other {self._money(other_total)}")
+
+        self.payment_value_label.setText(
+            " · ".join(payment_parts) if payment_parts else "No payments yet"
+        )
+        self.payment_meta_label.setText("Today's payment mix")
+        self._refresh_backup_status()
+
     def set_receipt_count(self, count: int) -> None:
-        self.summary_label.setText(f"Current database: {int(count):,} receipt(s).")
+        self._total_receipts = max(0, int(count))
+        self.refresh_operational_summary()

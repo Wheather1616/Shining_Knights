@@ -104,20 +104,55 @@ QLabel#HomeFeatureIcon[accent="coral"] {
     border-color: @coral_border@;
 }
 
-QFrame#HomeFooter {
-    background: transparent;
-    border-top: 1px solid #eadfd8;
+QFrame#HomeSummaryCard {
+    background: @surface@;
+    border: 1px solid @border@;
+    border-radius: @radius_large@;
 }
 
-QLabel#HomeFooterStat {
-    color: #4f4a52;
+QLabel#HomeSummaryEyebrow {
+    color: #7a3e42;
     font-family: @font_regular@;
-    font-size: 14px;
+    font-size: 11px;
+    letter-spacing: 1.3px;
 }
 
-QLabel#HomeFooterNote {
-    color: #7a7477;
+QLabel#HomeSummaryDate,
+QLabel#HomeSummaryDatabaseTotal {
+    color: @text_muted@;
     font-family: @font_body@;
-    font-size: 13px;
+    font-size: 12px;
+}
+
+QFrame#HomeSummaryMetric {
+    background: @surface_alt@;
+    border: 1px solid #eadfd9;
+    border-radius: @radius_control@;
+}
+
+QFrame#HomeSummaryMetric[accent="coral"] { background: @coral_soft@; border-color: @coral_border@; }
+QFrame#HomeSummaryMetric[accent="cyan"] { background: @cyan_soft@; border-color: @cyan_border@; }
+QFrame#HomeSummaryMetric[accent="amethyst"] { background: @amethyst_soft@; border-color: @amethyst_border@; }
+
+QLabel#HomeSummaryMetricLabel {
+    color: @text_muted@;
+    font-family: @font_regular@;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+QLabel#HomeSummaryMetricLabel[accent="coral"] { color: #c3594c; }
+QLabel#HomeSummaryMetricLabel[accent="cyan"] { color: #187d94; }
+QLabel#HomeSummaryMetricLabel[accent="amethyst"] { color: #94378e; }
+
+QLabel#HomeSummaryMetricValue {
+    color: @bordeaux@;
+    font-family: @font_regular@;
+    font-size: 17px;
+}
+
+QLabel#HomeSummaryMetricMeta {
+    color: @text_muted@;
+    font-family: @font_body@;
+    font-size: 11px;
 }
 ''')
