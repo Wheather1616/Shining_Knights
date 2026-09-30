@@ -26,7 +26,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
 set "PYTHONPATH=%CD%\src"
-pyinstaller --noconfirm --clean --windowed --name ReceiptFlow --paths src --collect-all keyring --collect-all sqlcipher3 --add-data "src\receipt_app\assets\logo.jpg;receipt_app\assets" main.py
+pyinstaller --noconfirm --clean --windowed --name ReceiptFlow --icon "src\receipt_app\assets\Logo.ico" --paths src --collect-all keyring --collect-all sqlcipher3 --add-data "src/receipt_app/assets:receipt_app/assets" main.py
 
 if errorlevel 1 (
     echo.

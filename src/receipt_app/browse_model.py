@@ -6,14 +6,8 @@ from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, QRect, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont
-from PySide6.QtWidgets import (
-    QApplication,
-    QStyle,
-    QStyledItemDelegate,
-    QStyleOptionButton,
-    QStyleOptionViewItem,
-)
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
 from .config import CORE_FIELD_KEYS, FieldDefinition
 
@@ -137,9 +131,9 @@ class BrowseTableModel(QAbstractTableModel):
             return None
         if orientation == Qt.Orientation.Horizontal:
             if 0 <= section < len(self._visible_fields):
-                return self._visible_fields[section].label
+                return self._visible_fields[section].label.upper()
             if section == self.actions_column:
-                return "Actions"
+                return "ACTIONS"
             return None
         return section + 1
 
@@ -156,7 +150,9 @@ class BrowseTableModel(QAbstractTableModel):
                 font.setBold(True)
                 return font
             if role == Qt.ItemDataRole.BackgroundRole:
-                return QBrush(QColor("#edf4ff"))
+                return QBrush(QColor("#f3ece8"))
+            if role == Qt.ItemDataRole.ForegroundRole:
+                return QBrush(QColor("#6d0813"))
             if role == self.ROW_KIND_ROLE:
                 return "group"
             return None
@@ -245,33 +241,36 @@ class ReceiptActionsDelegate(QStyledItemDelegate):
             super().paint(painter, option, index)
             return
 
-        # Let the base delegate paint the cell background/selection first; the
-        # lightweight buttons are then drawn on top without allocating widgets.
+        # Paint the normal cell background first, then draw lightweight branded
+        # action pills. This keeps the table efficient without allocating child
+        # widgets for every row.
         super().paint(painter, option, index)
-        style = option.widget.style() if option.widget is not None else QApplication.style()
         edit_rect, delete_rect = self._button_rects(option)
 
-        edit_option = QStyleOptionButton()
-        edit_option.rect = edit_rect
-        edit_option.text = "Edit"
-        edit_option.state = QStyle.StateFlag.State_Enabled
-        style.drawControl(
-            QStyle.ControlElement.CE_PushButton,
-            edit_option,
-            painter,
-            option.widget,
-        )
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        delete_option = QStyleOptionButton()
-        delete_option.rect = delete_rect
-        delete_option.text = "Delete"
-        delete_option.state = QStyle.StateFlag.State_Enabled
-        style.drawControl(
-            QStyle.ControlElement.CE_PushButton,
-            delete_option,
-            painter,
-            option.widget,
-        )
+        font = painter.font()
+        font.setBold(True)
+        if font.pointSizeF() > 0:
+            font.setPointSizeF(max(9.0, font.pointSizeF() - 0.5))
+        painter.setFont(font)
+
+        # Edit: restrained Amethyst accent.
+        painter.setBrush(QBrush(QColor("#fbf3fb")))
+        painter.setPen(QPen(QColor("#e4bfe1"), 1))
+        painter.drawRoundedRect(edit_rect, 10, 10)
+        painter.setPen(QPen(QColor("#a846a0")))
+        painter.drawText(edit_rect, Qt.AlignmentFlag.AlignCenter, "Edit")
+
+        # Delete: soft Coral treatment.
+        painter.setBrush(QBrush(QColor("#fff3f1")))
+        painter.setPen(QPen(QColor("#f5c2bb"), 1))
+        painter.drawRoundedRect(delete_rect, 10, 10)
+        painter.setPen(QPen(QColor("#d85d50")))
+        painter.drawText(delete_rect, Qt.AlignmentFlag.AlignCenter, "Delete")
+
+        painter.restore()
 
     def editorEvent(self, event, model, option, index: QModelIndex) -> bool:
         receipt_id = index.data(BrowseTableModel.RECEIPT_ID_ROLE)
