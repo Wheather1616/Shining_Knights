@@ -45,7 +45,8 @@ def open_encrypted_connection(
 
     # SQLCipher requires the key before any operation that touches database pages.
     conn.execute(f"PRAGMA key = {_raw_key_sql(key_hex)}")
-    conn.execute("PRAGMA cipher_memory_security = ON")
+    if os.name != "nt":
+        conn.execute("PRAGMA cipher_memory_security = ON")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA secure_delete = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
