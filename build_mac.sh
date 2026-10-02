@@ -8,11 +8,11 @@ pyinstaller \
   --noconfirm \
   --clean \
   --windowed \
-  --name ReceiptFlow \
-  --icon "src/receipt_app/assets/Logo.icns" \
+  --name ShiningKnights \
+  --icon "src/customer_app/assets/Logo.icns" \
   --paths src \
   --collect-all keyring \
   --collect-all sqlcipher3 \
-  --add-data "src/receipt_app/assets:receipt_app/assets" \
+  --add-data "src/customer_app/assets:customer_app/assets" \
   main.py
-printf '\nBuilt app should appear at: dist/ReceiptFlow.app\n'
+printf '\nBuilt app should appear at: dist/ShiningKnights.app\n'

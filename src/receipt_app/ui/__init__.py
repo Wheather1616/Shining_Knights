@@ -1,1 +1,0 @@
-"""ReceiptFlow user-interface components."""

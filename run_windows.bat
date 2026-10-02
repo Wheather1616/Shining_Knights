@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-echo Starting ReceiptFlow on Windows...
+echo Starting Shining Knights on Windows...
 
 where py >nul 2>nul
 if errorlevel 1 (
@@ -26,10 +26,10 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
 set "PYTHONPATH=%CD%\src"
-python -m receipt_app
+python -m customer_app
 
 if errorlevel 1 (
     echo.
-    echo ReceiptFlow stopped with an error.
+    echo Shining Knights stopped with an error.
     pause
 )

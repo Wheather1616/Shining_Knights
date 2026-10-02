@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-echo Building ReceiptFlow for Windows...
+echo Building Shining Knights for Windows...
 
 where py >nul 2>nul
 if errorlevel 1 (
@@ -26,7 +26,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
 set "PYTHONPATH=%CD%\src"
-pyinstaller --noconfirm --clean --windowed --name ReceiptFlow --icon "src\receipt_app\assets\Logo.ico" --paths src --collect-all keyring --collect-all sqlcipher3 --add-data "src/receipt_app/assets:receipt_app/assets" main.py
+pyinstaller --noconfirm --clean --windowed --name ShiningKnights --icon "src\customer_app\assets\Logo.ico" --paths src --collect-all keyring --collect-all sqlcipher3 --add-data "src/customer_app/assets:customer_app/assets" main.py
 
 if errorlevel 1 (
     echo.
@@ -36,6 +36,6 @@ if errorlevel 1 (
 )
 
 echo.
-echo Built app should appear at: dist\ReceiptFlow\ReceiptFlow.exe
-echo You can copy the whole dist\ReceiptFlow folder to another Windows computer.
+echo Built app should appear at: dist\ShiningKnights\ShiningKnights.exe
+echo You can copy the whole dist\ShiningKnights folder to another Windows computer.
 pause

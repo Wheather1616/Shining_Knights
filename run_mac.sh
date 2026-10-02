@@ -22,4 +22,4 @@ PY
 export QT_PLUGIN_PATH="$QT_PLUGIN_DIR"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_PLUGIN_DIR/platforms"
 
-python -m receipt_app
+python -m customer_app

@@ -1,3 +1,0 @@
-Stop-Process -Name ReceiptFlow -Force -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force .\build -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force .\dist -ErrorAction SilentlyContinue
