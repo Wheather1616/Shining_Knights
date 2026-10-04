@@ -1,0 +1,9 @@
+# Install application requirements separately into the same virtual environment.
+# Pin the application libraries exercised by this suite as well as its test tools.
+PySide6==6.11.2
+sqlcipher3==0.6.2
+keyring==25.7.0
+pytest==9.1.1
+pytest-qt==4.5.0
+pytest-cov==7.1.0
+hypothesis==6.168.3

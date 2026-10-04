@@ -1,24 +1,4 @@
-cat > .gitignore <<'EOF'
-# macOS
-.DS_Store
-
-# Python
-__pycache__/
-*.py[cod]
+.coverage
+reports/
+.hypothesis/
 .venv/
-.env/
-
-# PyInstaller/build outputs
-build/
-dist/
-
-# Local app/database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-EOF
-
-ShiningKnights.spec

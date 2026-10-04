@@ -1,0 +1,13 @@
+{
+  "tests": 145,
+  "passed": 144,
+  "skipped": 1,
+  "failures": 0,
+  "errors": 0,
+  "line_percent": 94.71,
+  "branch_percent": 84.67,
+  "combined_percent": 92.51,
+  "environment": "Linux / Python 3.12.14 / Qt offscreen",
+  "native_ipc_skip": "Host denied Unix sockets with EPERM",
+  "macos_windows_ci": "Configured, not executed here"
+}
