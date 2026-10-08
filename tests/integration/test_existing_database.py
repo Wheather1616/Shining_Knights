@@ -48,7 +48,7 @@ def test_snapshot_and_derived_counts(db):
     saved=db.get_job(j)
     assert saved['fee_cents'] == 18000
     assert saved['equipment'] == ['6m ladder']
-    assert saved['job_type'] == 'External windows'
+    assert saved['job_type'] == ['External windows']
     assert db.new_job_for_customer(c).fee == '210.00'
     s=db.customer_summary(c)
     assert s == {'jobs_completed':1,'last_job':'2026-09-18','next_due':'2026-11-13','next_scheduled':None}

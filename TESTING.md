@@ -1,9 +1,23 @@
 # ShiningKnights testing suite
 
+For the current customer-screen update, follow `CUSTOMER_SCREEN_UPDATE.md`.
+
 This update provides automated tests for the PySide6 customer/job app and its
 encrypted SQLCipher database, plus a repeatable runner and CI workflow.
 
 ## Install the update
+
+If you already installed the testing suite, this correction only requires
+replacing `tests` and `pytest.ini` from this archive. Then rerun
+`bash run_tests.sh --run-platform-tests` on your Mac. No dependency changes
+or application source changes are required for this correction.
+
+The correction keeps the Unix capability probe in a private directory under
+`/tmp` so macOS's long pytest temporary paths cannot exceed the socket address
+limit. It explicitly closes the four standard SQLite test connections while
+preserving transaction commits, and treats unraisable exceptions as failures
+so Python 3.13 resource leaks cannot pass unnoticed. Four new unit cases check
+the short probe path, cleanup, selective skipping and Windows behaviour.
 
 **This archive contains files for the project root.** Extract it outside your
 working project, then apply the folders at the matching levels:
@@ -121,7 +135,8 @@ The real keychain/credential locker is not exercised automatically. Add a manual
 check of credential access in a disposable OS profile before distributing builds.
 Native IPC is opt-in locally and enabled in CI. An independent Unix socket probe
 allows a skip only when the host denies sockets with EPERM; application endpoint
-errors still fail the test.
+errors still fail the test. The probe uses a private short `/tmp` path on Unix,
+independent of pytest's longer temporary database and lock paths.
 
 ## Reports and CI
 
@@ -160,8 +175,13 @@ The package includes four small fixes, with no database schema change:
 Validated on Linux with Python 3.12.14, PySide6 6.11.2, SQLCipher wrapper 0.6.2,
 pytest 9.1.1, pytest-qt 4.5.0, pytest-cov 7.1.0 and Hypothesis 6.168.3:
 
-- **144 passed, 1 skipped** when explicitly requesting native IPC checks.
-- **92.51% combined statement and branch coverage**; the 80% gate passed.
+- **185 passed, 1 skipped** when explicitly requesting native IPC checks.
+- **94.55% combined statement and branch coverage**; the 80% gate passed.
+- Eighteen Jobs cases cover date grouping/filtering, export selections and scopes,
+  linked customer navigation, configured fields, editing and layout/contrast.
+- Nine font regression cases check generic, missing and private system defaults,
+  platform font inventories, fallback selection and real text rendering after
+  repeated theme application. The missing "Sans Serif" warning is not ignored.
 - The native IPC test was skipped after the execution sandbox denied Unix sockets
   with EPERM. Lock and activation logic were exercised separately.
 - The platform matrix YAML was validated. Native macOS/Windows tests and the
@@ -190,3 +210,8 @@ The implementation follows the tools' primary documentation:
 Potential bias: This strategy prioritises record integrity and core user workflows.
 Coverage percentages, mocks and offscreen runs leave gaps in platform integration,
 packaged builds, visual layout and failures not yet modelled by the suite.
+
+
+## Settings and guided recovery update (7 October 2026)
+
+The latest suite contains 244 cases: 243 pass locally and the native IPC case is opt-in. New checks cover safe preference defaults and round trips, inactive catalogues, actual list-column changes, default payment on new customers only, automatic question identifiers, retained hidden answers, save/discard/keep-editing guards, filter persistence without search text, real encrypted restore and safety copies, invalid/wrong-key/unsupported backups, write rollback, interrupted recovery and rejection of backups changed after review. Settings geometry is checked at 1250 × 820 and 900 × 690. Use the existing platform commands above on Mac/Windows.

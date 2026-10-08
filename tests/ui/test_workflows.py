@@ -27,12 +27,13 @@ def drive_modal(open_action, dialog_class, action):
 
 def test_add_customer_then_job_through_main_window_buttons(window,context,qtbot,click,today):
     def fill_customer(dialog):
-        qtbot.keyClicks(dialog.form.widgets['name'],'Mary Window')
+        qtbot.keyClicks(dialog.form.widgets['first_name'],'Mary Window')
         qtbot.keyClicks(dialog.form.widgets['suburb'],'Coogee')
-        dialog.form.frequency.setCurrentText('Every 8 weeks')
+        dialog.form.widgets['frequency_value'].setValue(8)
+        dialog.form.widgets['frequency_unit'].setCurrentIndex(dialog.form.widgets['frequency_unit'].findData('weeks'))
         qtbot.keyClicks(dialog.form.widgets['default_fee'],'180.00')
         qtbot.keyClicks(dialog.form.widgets['gate_code'],'0042')
-        dialog.form.widgets['default_job_type'].setCurrentText('External windows')
+        dialog.form.widgets['default_job_type'].checkboxes['External windows'].setChecked(True)
         with qtbot.waitSignal(dialog.accepted,timeout=1000): click(dialog,'Save')
     drive_modal(lambda:click(window,'Add customer'),CustomerDialog,fill_customer)
     assert window.tabs.currentIndex()==1
@@ -46,7 +47,7 @@ def test_add_customer_then_job_through_main_window_buttons(window,context,qtbot,
         assert dialog.form.widgets['completed_date'].text()=='02/10/2026'
         dialog.form.widgets['weather'].setCurrentText('Dry')
         with qtbot.waitSignal(dialog.accepted,timeout=1000): click(dialog,'Save')
-    drive_modal(lambda:click(window,'Add job for customer'),JobDialog,fill_job)
+    drive_modal(lambda:click(window,'Add job'),JobDialog,fill_job)
     job=context.db.list_jobs()[0]
     assert job['status']=='Completed'
     assert job['custom_fields']['weather']=='Dry'
@@ -54,16 +55,16 @@ def test_add_customer_then_job_through_main_window_buttons(window,context,qtbot,
 
 def test_customer_cancel_does_not_create_a_record(window,context,qtbot,click):
     def cancel(dialog):
-        qtbot.keyClicks(dialog.form.widgets['name'],'Discard me')
+        qtbot.keyClicks(dialog.form.widgets['first_name'],'Discard me')
         with qtbot.waitSignal(dialog.rejected,timeout=1000): click(dialog,'Cancel')
     drive_modal(lambda:click(window,'Add customer'),CustomerDialog,cancel)
     assert context.db.list_customers()==[]
     assert window.customer_table.rowCount()==0
 
-@pytest.mark.parametrize('name,field,value,message',[('','name','','required'),('Mary','first_service_date','31/02/2026','use dd/mm/yyyy'),('Mary','default_fee','1.001','two decimal')])
+@pytest.mark.parametrize('name,field,value,message',[('','first_name','','required'),('Mary','first_service_date','31/02/2026','use dd/mm/yyyy'),('Mary','default_fee','1.001','two decimal')])
 def test_invalid_customer_save_keeps_form_open_and_database_empty(context,qtbot,click,messages,name,field,value,message):
     dialog=CustomerDialog(context.db,context.settings); qtbot.addWidget(dialog); dialog.show()
-    dialog.form.widgets['name'].setText(name)
+    dialog.form.widgets['first_name'].setText(name)
     dialog.form.widgets[field].setText(value)
     click(dialog,'Save')
     assert dialog.isVisible()
@@ -73,12 +74,12 @@ def test_invalid_customer_save_keeps_form_open_and_database_empty(context,qtbot,
 
 def test_failed_database_save_reports_error_and_preserves_input(context,qtbot,click,messages,monkeypatch):
     dialog=CustomerDialog(context.db,context.settings); qtbot.addWidget(dialog); dialog.show()
-    dialog.form.widgets['name'].setText('Keep my input')
+    dialog.form.widgets['first_name'].setText('Keep my input')
     def fail(record): raise OSError('Disk full')
     monkeypatch.setattr(context.db,'create_customer',fail)
     click(dialog,'Save')
     assert dialog.isVisible()
-    assert dialog.form.widgets['name'].text()=='Keep my input'
+    assert dialog.form.widgets['first_name'].text()=='Keep my input'
     assert messages[-1][2]=='Disk full'
 
 def test_job_edit_preserves_customer_and_clears_completed_date(context,customer_id,qtbot,click,today):
@@ -124,10 +125,11 @@ def test_search_profile_and_duplicate_customer_grouping(window,context,customer_
 def test_customer_deactivation_requires_confirmation_and_keeps_history(window,context,customer_id,click,messages,monkeypatch):
     job=context.db.create_job(context.db.new_job_for_customer(customer_id)); window.refresh_all()
     window.tabs.setCurrentIndex(1); window.customer_table.selectRow(0)
-    click(window,'Activate / deactivate')
+    window.customer_page.detail_tabs.setCurrentIndex(2)
+    click(window,'Deactivate customer')
     assert context.db.get_customer(customer_id)['active'] is True
     monkeypatch.setattr(QMessageBox,'question',lambda *a,**kw:QMessageBox.StandardButton.Yes)
-    click(window,'Activate / deactivate')
+    click(window,'Deactivate customer')
     assert context.db.get_customer(customer_id)['active'] is False
     assert context.db.get_job(job) is not None
     window.inactive.setChecked(True)
@@ -140,15 +142,16 @@ def test_complete_trash_and_restore_through_job_buttons(window,context,customer_
     click(window,'Mark completed')
     assert context.db.get_job(job)['status']=='Completed'
     window.jobs_tree.setCurrentItem(window.jobs_tree.topLevelItem(0).child(0))
-    click(window,'Move to Trash')  # Cancel is the default fixture response.
+    window.jobs_page.trash_action.trigger()  # Cancel is the default fixture response.
     assert context.db.get_job(job)['deleted_at'] is None
     monkeypatch.setattr(QMessageBox,'question',lambda *a,**k:QMessageBox.StandardButton.Yes)
-    click(window,'Move to Trash')
+    window.jobs_page.trash_action.trigger()
     assert context.db.list_jobs()==[]
     window.job_filter.setCurrentText('Trash')
     assert len(window.job_rows)==1
     window.jobs_tree.setCurrentItem(window.jobs_tree.topLevelItem(0).child(0))
-    click(window,'Edit job')
+    assert not window.jobs_page.edit_button.isEnabled()
+    window.edit_job()  # The backend guard also protects non-button entry points.
     assert messages[-1][1]=='Restore job first'
     click(window,'Restore job')
     assert context.db.get_job(job)['deleted_at'] is None
@@ -171,34 +174,35 @@ def test_job_filters_exclude_cancelled_completed_and_trashed_overdue_records(win
 
 def test_settings_save_emits_signal_updates_columns_and_new_forms(window,context,qtbot,click,messages):
     window.tabs.setCurrentIndex(3); page=window.configuration
-    page.tabs.setCurrentIndex(1)
-    page.tables['customers'].cellWidget(0,1).setText('Customer name')
-    page.lookups['equipment_options'].setPlainText('Ladder\nWater-fed pole')
-    with qtbot.waitSignal(page.settings_saved,timeout=1000): click(page,'Save configuration')
+    page.settings.customer_fields[0].label='Customer name'
+    page.settings.equipment_options=['Ladder','Water-fed pole']
+    page._changed()
+    with qtbot.waitSignal(page.settings_saved,timeout=1000): click(page,'Save changes')
     assert context.store.load().customer_fields[0].label=='Customer name'
     assert window.customer_table.horizontalHeaderItem(0).text()=='Customer name'
     assert window.db.settings.equipment_options==['Ladder','Water-fed pole']
     form=RecordForm(window.settings,'customers',asdict(CustomerRecord())); qtbot.addWidget(form)
-    assert form.widgets['default_equipment'].item(0).text()=='Ladder'
+    assert list(form.widgets['default_equipment'].checkboxes) == ['Ladder', 'Water-fed pole']
 
 def test_invalid_field_configuration_is_not_persisted_or_applied(window,context,click,messages):
     window.tabs.setCurrentIndex(3); page=window.configuration
     before=context.store.settings_path.read_bytes()
-    page.tables['customers'].cellWidget(0,1).setText('')
-    click(page,'Save configuration')
+    page.settings.customer_fields[0].label=''
+    page._changed()
+    click(page,'Save changes')
     assert context.store.settings_path.read_bytes()==before
     assert window.settings.customer_fields[0].label=='Client name'
-    assert messages[-1][1]=='Configuration could not be saved'
+    assert messages[-1][1]=='Settings could not be saved'
 
 def test_custom_dropdown_added_via_dialog_is_available_in_new_forms(window,context,qtbot,click,messages):
-    window.tabs.setCurrentIndex(3); page=window.configuration; page.tabs.setCurrentIndex(1)
+    window.tabs.setCurrentIndex(3); page=window.configuration; page.navigation.setCurrentRow(3)
     def add_field(dialog):
         qtbot.keyClicks(dialog.label,'Access type')
-        assert dialog.key.text()=='access_type'
-        dialog.kind.setCurrentText('dropdown'); dialog.options.setPlainText('Open\nLocked')
-        click(dialog,'OK')
-    drive_modal(lambda:click(page,'Add custom field'),FieldDialog,add_field)
-    click(page,'Save configuration')
+        assert dialog.definition().key=='access_type'
+        dialog.kind.setCurrentIndex(dialog.kind.findData('dropdown')); dialog.options.setPlainText('Open\nLocked')
+        click(dialog,'Add question')
+    drive_modal(lambda:click(page,'Add a question'),FieldDialog,add_field)
+    click(page,'Save changes')
     form=RecordForm(window.settings,'customers',asdict(CustomerRecord())); qtbot.addWidget(form)
     assert [form.widgets['access_type'].itemText(i) for i in range(3)]==['Choose…','Open','Locked']
 
@@ -217,7 +221,7 @@ def test_job_export_includes_customer_link_and_configured_custom_field(window,co
     window.refresh_all(); window.tabs.setCurrentIndex(2)
     path=tmp_path/'jobs.csv'
     monkeypatch.setattr(QFileDialog,'getSaveFileName',lambda *a,**kw:(str(path),'CSV files (*.csv)'))
-    click(window,'Export CSV')
+    window.jobs_page.export_filtered_action.trigger()
     with path.open(encoding='utf-8-sig',newline='') as handle: rows=list(csv.DictReader(handle))
     assert rows[0]['Customer ID']==str(customer_id)
     assert rows[0]['Customer']=='Mary Window'
@@ -231,8 +235,9 @@ def test_cancelled_export_writes_no_file(window,tmp_path,monkeypatch,click):
 
 def test_automatic_backup_failure_is_visible_without_a_modal(window,monkeypatch):
     class FailedBackup:
+        def latest_backup(self): return None
         def create_backup_if_due(self): raise OSError('Backup volume unavailable')
     window.backup_manager=FailedBackup(); window.automatic_backup()
-    assert 'Automatic backup failed: Backup volume unavailable'==window.backup_label.text()
+    assert 'Automatic backup failed.' in window.backup_label.text()
     window.prepare_shutdown()
     assert not window.backup_timer.isActive()

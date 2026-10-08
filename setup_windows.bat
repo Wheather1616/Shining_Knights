@@ -12,9 +12,8 @@ if errorlevel 1 goto failed
 ".venv\Scripts\python.exe" -c "from sqlcipher3 import dbapi2; c=dbapi2.connect(':memory:'); assert c.execute('PRAGMA cipher_version').fetchone(), 'SQLCipher unavailable'; c.close()"
 if errorlevel 1 goto failed
 echo Setup complete. Run run_windows.bat to open ShiningKnights.
-pause
 exit /b 0
 :failed
-echo Setup failed. Check the message above. Use a supported 64-bit Python installation.
+echo Setup failed. Check the message above.
 pause
 exit /b 1

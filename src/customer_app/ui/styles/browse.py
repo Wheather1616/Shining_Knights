@@ -28,7 +28,7 @@ QHeaderView::section {
     background: #f2e7df; color: @bordeaux@;
     border: none; border-right: 1px solid @border@;
     border-bottom: 1px solid @border_strong@;
-    padding: 9px 10px; font-family: @font_regular@; font-size: 13px;
+    padding: 9px 10px; font-family: @font_body@; font-size: 13px;
 }
 QTableCornerButton::section { background: #f2e7df; border: none; }
 ''')

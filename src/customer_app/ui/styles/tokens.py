@@ -7,7 +7,7 @@ from pathlib import Path
 TOKENS: dict[str, str] = {
     # Typography
     "font_regular": '"Idiqlat", "Helvetica Neue", Arial, sans-serif',
-    "font_body": '"Idiqlat", "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+    "font_body": '"Helvetica Neue", "Segoe UI", Arial, sans-serif',
     "font_light": '"Idiqlat ExtraLight", "Idiqlat Light", "Helvetica Neue", Arial, sans-serif',
     # Brand palette
     "canvas": "#fbf8f5",
@@ -46,7 +46,8 @@ TOKENS: dict[str, str] = {
 # Paths are resolved at runtime, including inside a PyInstaller bundle.
 _THEME_ASSETS = Path(__file__).resolve().parents[2] / 'assets' / 'theme'
 for key, filename in [('icon_tick','check.svg'), ('icon_down','chevron-down.svg'),
-                      ('icon_right','chevron-right.svg'), ('icon_partial','partial.svg')]:
+                      ('icon_right','chevron-right.svg'), ('icon_partial','partial.svg'),
+                      ('icon_down_white','chevron-down-white.svg')]:
     path = (_THEME_ASSETS / filename).as_posix().replace('"', '\\"')
     TOKENS[key] = f'url("{path}")'
 

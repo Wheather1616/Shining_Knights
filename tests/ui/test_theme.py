@@ -2,11 +2,12 @@
 import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PySide6.QtGui import QColor, QPalette, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetrics, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QPushButton, QTableWidget
 import pytest
 
 from customer_app.ui.theme import apply_application_theme, load_application_fonts
+from customer_app.ui import theme
 from customer_app.ui.styles.tokens import TOKENS
 
 def contrast(first, second):
@@ -59,3 +60,45 @@ def test_bundled_fonts_and_indicator_images_load(themed_app):
         path = TOKENS[key][5:-2]
         pixmap = QPixmap(path)
         assert not pixmap.isNull(), path
+
+
+@pytest.mark.parametrize('system,available,private,expected', [
+    ('Sans Serif', ['Sans Serif', 'Helvetica Neue', 'Arial'], [], 'Helvetica Neue'),
+    ('Sans Serif', ['Segoe UI', 'Arial'], [], 'Segoe UI'),
+    ('Sans Serif', ['DejaVu Sans', 'Sans Serif'], [], 'DejaVu Sans'),
+    ('System UI', ['System UI', 'Arial'], [], 'System UI'),
+    ('.AppleSystemUIFont', ['.AppleSystemUIFont', 'Arial'], ['.AppleSystemUIFont'], 'Arial'),
+    ('Missing font', ['Other installed font', 'Serif'], [], 'Other installed font'),
+    ('Sans Serif', ['helvetica neue', 'Arial'], [], 'helvetica neue'),
+])
+def test_body_font_resolves_generic_missing_and_private_defaults(
+        qapp, monkeypatch, system, available, private, expected):
+    # Simulate platform inventories without rendering a font absent on this host.
+    monkeypatch.setattr(QFontDatabase, 'families', lambda: available)
+    monkeypatch.setattr(QFontDatabase, 'systemFont', lambda kind: QFont(system))
+    monkeypatch.setattr(QFontDatabase, 'isPrivateFamily', lambda family: family in private)
+    assert theme._body_font_family() == expected
+
+
+def test_body_font_requires_a_usable_family(qapp, monkeypatch):
+    monkeypatch.setattr(QFontDatabase, 'families', lambda: ['Sans Serif', 'Serif', 'Monospace'])
+    monkeypatch.setattr(QFontDatabase, 'systemFont', lambda kind: QFont('Sans Serif'))
+    with pytest.raises(RuntimeError, match='No usable font family'):
+        theme._body_font_family()
+
+
+def test_theme_reapplication_renders_with_an_available_body_font(qapp, qtbot):
+    control = QLineEdit('Customer name')
+    qtbot.addWidget(control)
+    control.show()
+    for _ in range(2):
+        apply_application_theme(qapp)
+        font = qapp.font()
+        assert font.family() in QFontDatabase.families()
+        assert font.family().casefold() not in {'sans serif', 'sans-serif', 'serif', 'monospace'}
+        assert not QFontDatabase.isPrivateFamily(font.family())
+        assert font.pixelSize() == 14
+        assert font.weight() == QFont.Weight.Normal
+        # Force font resolution rather than only inspecting the requested name.
+        assert QFontMetrics(font).horizontalAdvance('Customer name') > 0
+        control.grab()

@@ -1,95 +1,79 @@
-# ShiningKnights: customers and jobs, V1
+# ShiningKnights: customers, jobs and settings
 
-A functional desktop customer/job application adapted from the uploaded ReceiptFlow package. This version implements the database and field configuration, with simple usable screens. It is source code, not a compiled Windows installer or Mac application bundle.
+A PySide6 desktop app for a window-cleaning business, with linked customers/jobs, SQLCipher-encrypted records, customer Service setup, day-grouped jobs, CSV export and plain-language Settings, a minimal Home overview and a streamlined customer workflow with multiple named services per customer. This download contains source code.
 
-## Run on Windows
+## Update an existing project
 
-Use a new folder for this version. Do not extract it over your live ReceiptFlow installation or reuse its virtual environment.
+Close the app, extract `customer-workflow-update.zip` into the project root and replace the included files. Keep the `src/customer_app/` and `tests/` paths intact. Run `bash run_mac.sh` or `run_windows.bat`. See `CUSTOMER_WORKFLOW_UPDATE.md` for the full change list and installation steps. The first launch upgrades version-1 customer databases to version 2 in a transaction, adding separate name fields and optional hours without changing record IDs or job links. Existing full names remain intact. Backups, the virtual environment and credentials stay in their existing locations.
 
-1. Extract this ZIP into a new folder, for example `C:\Apps\ShiningKnights-V1`.
-2. Use a supported 64-bit Python installation. Python 3.12 or 3.13 is a suitable starting point.
-3. Run `setup_windows.bat` once. It creates an isolated `.venv` and installs dependencies. Internet access is required for setup.
-4. Run `run_windows.bat` to open the application.
+## Fresh setup
 
-If Windows does not recognise `py`, install Python with the Windows Python launcher, or create the virtual environment with your installed Python executable. If pip reports that a dependency has no compatible wheel, check the Python version, CPU architecture and operating-system compatibility. The setup uses binary wheels rather than attempting to compile SQLCipher.
+Keep the extracted source structure intact. Do not place the complete project inside `src/customer_app` or reuse the ReceiptFlow data folder.
 
-## Run on Mac
-
-Extract into a new folder, open Terminal in that folder, then run:
+On Mac:
 
 ```bash
 bash setup_mac.sh
 bash run_mac.sh
 ```
 
-A compatible Python 3 installation and operating system supported by PySide6 are required. The encryption key is kept in macOS Keychain. Allow access when prompted.
+On Windows, run `setup_windows.bat`, then `run_windows.bat`. Setup requires a compatible 64-bit Python installation and access to the dependency packages. Python 3.12 or 3.13 is the tested starting point. The launch scripts use the existing virtual environment rather than reinstalling packages on every launch.
 
-## Try the workflow
+## Home overview
 
-1. Open **Field settings > Choices**, edit equipment, nature-of-job and payment-method lists, then **Save configuration**.
-2. Open **Customers > Add customer**. Enter name, contact details, full address, service frequency, equipment, fee and usual payment method. Customer name is initially the only compulsory customer field.
-3. Select the customer, then **Add job for customer**. Service type, equipment, fee and payment method prefill from the customer. Enter the actual job date and adjust its details if needed.
-4. Mark a job completed. The completed date defaults to today when selecting Completed in the job form; you can change it for a historical visit. Payment status is separate and remains Unpaid until you change it.
-5. View job history beneath the customer. Open **Jobs**, then group by customer, date or status. Double-click a job to edit it.
+Home shows today’s open jobs, the next seven days including today, and active customers due in that period or overdue without a future open booking. Upcoming visits show the first five jobs; selecting a visit opens its details. Needs a booking shows the first five customers with customer-specific Add job actions, and can show the complete list. A separate notice links to overdue open jobs. Summary cards open the corresponding lists. The date and counts refresh after record changes and when the day changes.
 
-Changing a customer's defaults affects future jobs. Existing jobs retain their saved fee, equipment, service type and payment method. Jobs completed and last completed date are calculated from non-deleted completed jobs.
+The branded header keeps Home, Customers, Jobs and Settings together, with the active page highlighted in maroon. Alt+H, Alt+C, Alt+J and Alt+S switch pages. Leaving unsaved Settings still offers Save, Discard and Keep editing.
 
-## Field configuration
+## Workflow
 
-**Customers** and **Jobs** have separate field definitions. Each supports labels, required flags and list-column flags. Core types and structural status choices are fixed. Optional core fields can be made compulsory.
+1. Use Settings to manage services, equipment and payment methods. Save changes when finished.
+2. Add a customer with separate first/last name inputs and contact/address details. Service setup uses a numeric repeat interval plus days, weeks, months or years; 0 means one-off. Choose an optional service date with the calendar, tick equipment, and enter the total service fee and optional hours. Dropdown choices do not change when the mouse wheel scrolls the form.
+3. Add a linked job. It starts with that customer's available choices, fee and hours. Existing jobs retain their recorded amounts, hours and choices when customer defaults change.
+4. Record completion and payment status separately. Completion contributes to service history and next-due calculations; it does not automatically create another job.
+5. On Jobs, filter and group visits, tick jobs or whole days and export selected or all filtered jobs to CSV.
 
-Use **Add custom field** for text, notes, numbers, currency, dates, dropdowns, equipment-style multiple selections or booleans. Dropdown and multiple-selection choices use one line per option. Custom keys are permanent identifiers, for example `gate_code`; labels can change. Types cannot be changed after creation through the interface. Do not change an existing field's key or type by manually editing settings.
+Customers also have a **Services** tab. Add Indoor windows and Whole house with separate fees and hours, choose a usual service, and select one when booking a job. Saved jobs keep their own service name and visit details. Frequency and payment preferences remain customer-wide. Nature of job is a tick-box grid supporting several types of work within one service. See `CUSTOMER_SERVICES_UPDATE.md` and `MULTIPLE_JOB_TYPES_UPDATE.md` for the workflow and installation details.
 
-Disable a custom field to hide it, keeping historical values. Clear its Required checkbox before disabling it. Making a field required does not rewrite old records; the value must be supplied the next time that record is saved.
+Settings provides Services & equipment, Payment methods, Screen layout, Extra information, and Backups & help. Core field types stay protected. Extra questions use automatic stable identifiers; hiding them retains answers. A default payment method applies only to newly added customers. Optional remembered job filters exclude search text.
 
-Removed choices remain visible on existing records as saved choices. Existing unchanged values can still be saved. New records need currently configured choices; update any affected customer defaults before creating their next job.
+New records store first and last names independently and retain a combined name for existing lists, job links and exports. Existing full names are not automatically split; the edit form preserves them in the First name input until you separate them. Customer lists start compact, with More detail revealing configured extra fields.
 
-## Recurrence
+Phone and postcode inputs allow digits only, preserving leading zeroes. Saving checks a 10–15-digit phone number, four-digit Australian postcode and email syntax including `@`. Blank optional contact fields remain allowed. These are format checks, not checks that a phone number or mailbox exists.
 
-Presets: monthly; every 6, 8, 10 or 12 weeks; quarterly; six-monthly; annual; one-off/as needed. **Other interval** supports a whole-number interval in days, weeks, months or years.
+The fee remains the agreed total AUD charge. Optional hours accept up to two decimal places and do not multiply the fee or calculate an hourly rate. New jobs snapshot both fee and hours. Old jobs have no hours estimate unless you enter one.
 
-Next due is the last completed visit plus the customer's current interval. For a customer without completed jobs, **First / next service date** provides the initial due date. An already scheduled job is shown separately and does not rewrite the calculated due date. Completion does not automatically create another job. Month/year arithmetic clamps to the last valid calendar day, e.g. 31 January plus one month becomes 28 February in a non-leap year. The next cycle is based on the actual completion date.
+Customer next due is based on the last non-deleted completed visit plus the current interval. For a customer without completed jobs, First / next service date supplies the initial due date. Monthly/yearly intervals clamp to valid calendar dates. Scheduled visits are shown separately.
 
-## Storage and recovery
+Customers can be deactivated/reactivated while retaining history. Job Trash hides a job from summaries and supports restoring that individual job.
 
-- Windows database: `%LOCALAPPDATA%\ShiningKnights\data\customers.db`
-- Mac database: `~/Library/Application Support/ShiningKnights/data/customers.db`
-- Field configuration: `crm-settings.json` in the corresponding ShiningKnights application-data directory.
-- Encrypted automatic snapshots: `backups` beneath that directory, on launch, hourly while running, and on close when due. **Back up now** creates a snapshot immediately. The inherited retention policy keeps recent hourly, daily and monthly recovery points.
-- Customers are deactivated rather than deleted. Existing jobs and history remain available. Reactivate them using Include inactive.
-- Jobs moved to Trash are excluded from summaries and can be restored through the Trash filter.
+## Data and recovery
 
-The encryption key is in the current OS user's credential store, using the separate ShiningKnights service. There is no plaintext database fallback. A database or backup copied to another user/computer will require the matching key and a controlled recovery procedure. This release does not provide a key-transfer or restore wizard. Preserve the OS credential-store entry alongside recovery planning; a database backup alone is not sufficient for moving computers.
+- Windows records: `%LOCALAPPDATA%\ShiningKnights\data\customers.db`.
+- Mac records: `~/Library/Application Support/ShiningKnights/data/customers.db`.
+- Configuration: `crm-settings.json` in the app support directory.
+- Backups: the `backups` folder in the same app support directory.
 
-Database backups do not include `crm-settings.json`. Preserve that file separately to retain field definitions. CSV exports are unencrypted and contain customer details, so store them appropriately.
+Records are encrypted with the current OS user's ShiningKnights credential-store key. There is no plaintext record fallback. Settings are stored separately as JSON. This app does not use ReceiptFlow's settings/data location.
 
-The new package does not read ReceiptFlow's settings or data locations. If a database at the ShiningKnights path contains only an inherited `receipts` table, it is retained untouched while new customer/job tables are added. Receipts are not automatically converted into customers. Unrecognised existing customer/job schemas stop startup rather than being silently replaced. Existing plaintext SQLite files are encrypted using the inherited verified migration process before use.
+Automatic snapshots run at startup, hourly while open, and on shutdown when due. Manual backups are available from Settings; the Home footer links to Backups & help. New backups include a matching settings snapshot. Keep both files together when copying a backup, or copy the entire folder. Retention keeps recent hourly, daily and monthly recovery points.
 
-## What changed
+Settings offers a guided restore with integrity/schema/link validation, backup date and contents, final confirmation, and a safety copy before replacing current records. Older record-only backups keep current settings. Restoring does not change the active database location. Backups from another user/computer need the matching encryption key and a controlled transfer procedure; this release does not transfer keys.
 
-- Replaced receipt schema and API with `CustomerDatabase`, `CustomerRecord` and `JobRecord`.
-- Added linked customer/job tables, version tracking, foreign keys, validation and exact whole-cent amounts.
-- Replaced receipt field settings with independent customer/job configuration and lookup lists.
-- Added customer profiles, job forms, grouped job views, derived service summaries, CSV exports and job Trash.
-- Retained encryption, OS key storage, single-instance control, platform data paths and encrypted backup infrastructure.
-- Removed receipt-only screens and workflow modules from this customer package.
-- Added launch/setup scripts and automated data/UI tests.
+CSV exports contain readable customer information. Store them as business records. The fee is the agreed AUD charge for a visit; the app does not calculate GST, hourly labour, invoice balances or partial-payment amounts. Cloud sync, multi-user access, routing and automatic recurring-job creation are outside this version.
 
-The charge field stores the agreed AUD fee for a visit. This version does not calculate hourly labour, GST, invoices, accounting balances or partial-payment amounts. It does not include cloud sync, mobile access, multiple users, routing, reminders or automatic recurring-job creation.
+## Tests and builds
 
-## Validation
-
-38 automated tests passed on Linux using Python 3.12, PySide6 6.11.2, sqlcipher3 0.6.2 and keyring 25.7.0. Tests use real SQLCipher encrypted files and explicit temporary keys, plus offscreen Qt forms. They cover foreign keys, fee snapshots, custom fields, recurrence, archive/restore, search, wrong-key refusal, encrypted backups and preserved inherited receipt tables. Windows/Mac native launch and credential-store access still need testing on the target computers.
-
-Developer command, from this folder:
+Install test dependencies into the existing environment:
 
 ```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest tests -q
+.venv/bin/python -m pip install -r requirements-test.txt
+bash run_tests.sh
+bash run_tests.sh --run-platform-tests
 ```
 
-## Technical references
+On Windows use `.venv\Scripts\python.exe -m pip install -r requirements-test.txt` and `run_tests.bat`. See `TESTING.md` for coverage, isolation and platform checks.
 
-- SQLite foreign keys: https://sqlite.org/foreignkeys.html
-- SQLite floating-point limitations: https://sqlite.org/floatingpoint.html
-- SQLCipher Python driver: https://github.com/coleifer/sqlcipher3
+Latest validation: 384 tests passed, 1 native-platform test skipped, with 95.48% combined line/branch coverage. Detailed results are recorded in `VALIDATION.json`. It covers encrypted database queries and links, multiple-service storage and price snapshots, migration and backup restore, and Qt interactions. Customers, Services and the service editor were checked at normal and minimum supported sizes. Native Mac/Windows testing and packaged app checks remain to be run on those operating systems.
+
+After source verification on the target computer, `bash build_mac.sh` builds `dist/ShiningKnights.app`; `build_windows.bat` builds the Windows output folder. These scripts use `requirements-build.txt`. Copy the complete Windows build folder. Native packaging must be tested on its corresponding OS.

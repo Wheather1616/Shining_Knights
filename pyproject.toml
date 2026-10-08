@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shining-knights"
+version = "0.1.1"
+description = "Desktop customer and job management for a window-cleaning business"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6==6.11.2",
+    "sqlcipher3==0.6.2",
+    "keyring==25.7.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+build = ["pyinstaller>=6,<7"]
+
+[project.scripts]
+shining-knights = "customer_app.entrypoint:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["customer_app*"]
+
+[tool.setuptools.package-data]
+customer_app = ["assets/**/*", "assets/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

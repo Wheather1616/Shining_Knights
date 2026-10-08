@@ -99,7 +99,7 @@ def customer_id(context):
 def window(context, qtbot):
     from customer_app.ui.main_window import CustomerMainWindow
     widget = CustomerMainWindow(db=context.db,settings_store=context.store,enable_backups=False)
-    qtbot.addWidget(widget)
+    qtbot.addWidget(widget, before_close_func=lambda w: w.configuration.discard())
     widget.show()
     return widget
 
@@ -127,9 +127,9 @@ def click(qtbot):
 def today(monkeypatch):
     """Fix the date where it is consumed, without altering Python's global clock."""
     from customer_app import database
-    from customer_app.ui import forms, main_window
+    from customer_app.ui import forms, main_window, jobs_page, form_controls
     class FixedDate(date):
         @classmethod
         def today(cls): return cls(2026,10,2)
-    for module in (database,forms,main_window): monkeypatch.setattr(module,'date',FixedDate)
+    for module in (database,forms,main_window,jobs_page,form_controls): monkeypatch.setattr(module,'date',FixedDate)
     return FixedDate.today()

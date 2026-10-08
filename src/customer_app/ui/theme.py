@@ -13,6 +13,23 @@ FONT_DIR = ASSETS_DIR / 'fonts'
 _loaded_fonts: dict[Path, tuple[str, ...]] = {}
 
 
+def _body_font_family() -> str:
+    """Resolve offscreen defaults such as 'Sans Serif' before Qt renders text."""
+    aliases = {'sans serif', 'sans-serif', 'sans', 'serif', 'monospace'}
+    available = {
+        family.casefold(): family for family in QFontDatabase.families()
+        if family.casefold() not in aliases and not QFontDatabase.isPrivateFamily(family)
+    }
+    system_family = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont).family()
+    for candidate in (system_family, 'Helvetica Neue', 'Segoe UI', 'Arial',
+                      'DejaVu Sans', 'Liberation Sans', 'Noto Sans'):
+        if candidate.casefold() in available:
+            return available[candidate.casefold()]
+    if available:
+        return available[sorted(available)[0]]
+    raise RuntimeError('No usable font family is available for application text.')
+
+
 def load_application_fonts() -> tuple[str, ...]:
     """Load the same Idiqlat assets as ReceiptFlow, with readable system fallbacks."""
     families = []
@@ -26,8 +43,10 @@ def load_application_fonts() -> tuple[str, ...]:
             if family not in families: families.append(family)
     app = QApplication.instance()
     if app is not None:
-        family = 'Idiqlat' if 'Idiqlat' in families else app.font().family()
-        font = QFont(family)
+        # Keep Idiqlat available for branded titles; records use a normal system face.
+        # The offscreen plugin can return the missing alias 'Sans Serif' on macOS.
+        font = QFont(_body_font_family())
+        font.setWeight(QFont.Weight.Normal)
         font.setPixelSize(14)
         app.setFont(font)
     return tuple(families)

@@ -15,10 +15,11 @@ from .db_crypto import (
 class DatabaseBackupManager:
     """Create encrypted SQLCipher backups and prune old recovery points."""
 
-    def __init__(self, db_path: Path, backup_dir: Path, key_hex: str):
+    def __init__(self, db_path: Path, backup_dir: Path, key_hex: str, *, settings_store=None):
         self.db_path = Path(db_path)
         self.backup_dir = Path(backup_dir)
         self.key_hex = key_hex
+        self.settings_store = settings_store
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
         # Backups created before SQLCipher was enabled were plaintext SQLite.
@@ -85,6 +86,9 @@ class DatabaseBackupManager:
         temp_path = backup_path.with_name(backup_path.name + ".tmp")
         temp_path.unlink(missing_ok=True)
 
+        from .recovery import settings_snapshot_path
+        snapshot = settings_snapshot_path(backup_path)
+        snapshot_tmp = snapshot.with_name(snapshot.name + '.tmp')
         source = destination = None
         try:
             try:
@@ -99,9 +103,21 @@ class DatabaseBackupManager:
             verify_encrypted_database(temp_path, self.key_hex)
             if os.name == "posix":
                 temp_path.chmod(0o600)
+            if self.settings_store:
+                # Write settings first; only a verified published .db counts as a backup.
+                import json
+                with snapshot_tmp.open('w', encoding='utf-8') as handle:
+                    json.dump(self.settings_store.load().to_dict(), handle, indent=2, ensure_ascii=False)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                if os.name == 'posix':
+                    snapshot_tmp.chmod(0o600)
+                os.replace(snapshot_tmp, snapshot)
             os.replace(temp_path, backup_path)
         except Exception:
             temp_path.unlink(missing_ok=True)
+            snapshot_tmp.unlink(missing_ok=True)
+            snapshot.unlink(missing_ok=True)
             raise
 
         return backup_path
@@ -154,6 +170,8 @@ class DatabaseBackupManager:
             if backup in keep:
                 continue
             backup.unlink(missing_ok=True)
+            from .recovery import settings_snapshot_path
+            settings_snapshot_path(backup).unlink(missing_ok=True)
             removed.append(backup)
 
         return removed

@@ -15,6 +15,13 @@ QWidget#CustomerProfileCard, QWidget#LookupSettingsCard, QWidget#RecordForm {
 QWidget#LookupSettingsCard QLabel, QWidget#RecordForm QLabel {
     color: @text@; background: transparent; border: none;
 }
+QWidget#AppHeader { background: @canvas@; border-bottom: 1px solid @border_strong@; }
+QLabel#AppBrand { color: @bordeaux@; font-family: @font_regular@; font-size: 28px; }
+QPushButton#AppNavigation { background: transparent; color: @text@; border: 1px solid transparent; border-radius: 9px; padding: 10px 18px; font-family: @font_body@; font-size: 15px; }
+QPushButton#AppNavigation:hover { background: @surface_soft@; color: @bordeaux_mid@; }
+QPushButton#AppNavigation:checked { background: @bordeaux_mid@; color: @white@; }
+QPushButton#AppNavigation:focus { border-color: @cyan@; }
+QTabWidget#AppTabs::pane { border: none; }
 QTabWidget::pane {
     background: @canvas@; border: 1px solid @border@;
     border-top: 2px solid @bordeaux_mid@;

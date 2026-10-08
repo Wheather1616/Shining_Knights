@@ -27,6 +27,25 @@ def money_to_cents(value: Any) -> int | None:
 def money_text(cents: int | None) -> str:
     return '' if cents is None else f'{Decimal(cents) / 100:.2f}'
 
+def hours_text(value: Any) -> str | None:
+    if value is None or value == '':
+        return None
+    try:
+        amount = Decimal(str(value))
+        if not amount.is_finite() or amount < 0 or amount > Decimal('9999.99') or amount * 100 != (amount * 100).to_integral_value():
+            raise InvalidOperation
+        return f'{amount:.2f}'
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise ValidationError('Hours must be a non-negative number with at most two decimal places (up to 9999.99).') from exc
+
+def job_types(value: Any) -> list[str]:
+    """Normalise a legacy single choice or a current list without splitting names."""
+    if isinstance(value, str):
+        value = [value] if value else []
+    if not isinstance(value, list) or any(not isinstance(v, str) or not v.strip() for v in value):
+        raise ValidationError('Nature of job must contain a list of named choices.')
+    return list(dict.fromkeys(value))
+
 def add_interval(anchor: str, value: int | None, unit: str) -> str | None:
     if not anchor or value is None or not unit: return None
     d = date.fromisoformat(anchor)
@@ -50,13 +69,16 @@ class CustomerRecord:
     frequency_value: int | None = None
     frequency_unit: str = ''
     first_service_date: str = ''
-    default_job_type: str = ''
+    default_job_type: list[str] = field(default_factory=list)
     default_equipment: list[str] = field(default_factory=list)
     default_fee: str | None = None
     default_payment_type: str = ''
     notes: str = ''
     active: bool = True
     custom_fields: dict[str, Any] = field(default_factory=dict)
+    first_name: str = ''
+    last_name: str = ''
+    default_hours: str | None = None
 
 @dataclass
 class JobRecord:
@@ -64,10 +86,25 @@ class JobRecord:
     scheduled_date: str = ''
     completed_date: str = ''
     status: str = 'Scheduled'
-    job_type: str = ''
+    job_type: list[str] = field(default_factory=list)
     equipment: list[str] = field(default_factory=list)
     fee: str | None = None
     payment_type: str = ''
     payment_status: str = 'Unpaid'
     notes: str = ''
     custom_fields: dict[str, Any] = field(default_factory=dict)
+    hours: str | None = None
+    service_id: int | None = None
+    service_name: str = ''
+
+
+@dataclass
+class ServiceRecord:
+    """A reusable customer-specific visit, independent of global job types."""
+    customer_id: int
+    name: str = ''
+    job_type: list[str] = field(default_factory=list)
+    equipment: list[str] = field(default_factory=list)
+    fee: str | None = None
+    hours: str | None = None
+    notes: str = ''

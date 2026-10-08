@@ -52,26 +52,31 @@ CUSTOMER_FIELDS = [
     FieldDefinition('frequency_value', 'Repeat interval', 'number'),
     FieldDefinition('frequency_unit', 'Repeat unit', 'dropdown', options=['days','weeks','months','years']),
     FieldDefinition('first_service_date', 'First / next service date', 'date'),
-    FieldDefinition('default_job_type', 'Nature of job', 'dropdown', browse_column=True),
+    FieldDefinition('default_job_type', 'Nature of job', 'multiselect', browse_column=True),
     FieldDefinition('default_equipment', 'Equipment required', 'multiselect'),
     FieldDefinition('default_fee', 'Standard charge / fee (AUD)', 'currency', browse_column=True),
     FieldDefinition('default_payment_type', 'Usual payment method', 'dropdown'),
     FieldDefinition('notes', 'Customer / access notes', 'textarea'),
     FieldDefinition('active', 'Active customer', 'boolean'),
+    FieldDefinition('first_name', 'First name'),
+    FieldDefinition('last_name', 'Last name'),
+    FieldDefinition('default_hours', 'Number of hours', 'number'),
 ]
 JOB_FIELDS = [
     FieldDefinition('scheduled_date', 'Scheduled date', 'date', browse_column=True),
     FieldDefinition('completed_date', 'Completed date', 'date', browse_column=True),
     FieldDefinition('status', 'Job status', 'dropdown', True, True, list(JOB_STATUSES)),
-    FieldDefinition('job_type', 'Nature of job', 'dropdown', browse_column=True),
+    FieldDefinition('job_type', 'Nature of job', 'multiselect', browse_column=True),
     FieldDefinition('equipment', 'Equipment required', 'multiselect'),
     FieldDefinition('fee', 'Charge / fee (AUD)', 'currency', browse_column=True),
     FieldDefinition('payment_type', 'Payment method', 'dropdown', browse_column=True),
     FieldDefinition('payment_status', 'Payment status', 'dropdown', True, True, list(PAYMENT_STATUSES)),
     FieldDefinition('notes', 'Job notes', 'textarea'),
+    FieldDefinition('hours', 'Number of hours', 'number'),
+    FieldDefinition('service_name', 'Customer service', browse_column=True),
 ]
 CORE_FIELDS = {'customers': {f.key for f in CUSTOMER_FIELDS}, 'jobs': {f.key for f in JOB_FIELDS}}
-RESERVED_KEYS = {'id','customer_id','created_at','updated_at','deleted_at','custom_fields','fee_cents','default_fee_cents','jobs_completed','last_job','next_due'}
+RESERVED_KEYS = {'service_id','is_default','id','customer_id','created_at','updated_at','deleted_at','custom_fields','fee_cents','default_fee_cents','jobs_completed','last_job','next_due'}
 
 @dataclass
 class AppSettings:
@@ -81,6 +86,12 @@ class AppSettings:
     equipment_options: list[str] = field(default_factory=lambda: ['Extension pole','3m ladder','6m ladder','Water-fed pole','Pressure washer','Harness','Other'])
     job_type_options: list[str] = field(default_factory=lambda: ['External windows','Internal windows','Internal + external','Screens','Skylights','Solar panels','Pressure cleaning','Commercial clean','Other'])
     payment_type_options: list[str] = field(default_factory=lambda: ['Cash','Card','Bank transfer','Other'])
+
+    inactive_options: dict[str, list[str]] = field(default_factory=dict)
+    default_payment_method: str = ''
+    remember_jobs_filters: bool = False
+    jobs_default_group: str = 'date'
+    jobs_filters: dict[str, str] = field(default_factory=dict)
 
     def fields_for(self, entity: str) -> list[FieldDefinition]:
         if entity not in CORE_FIELDS:
@@ -93,6 +104,35 @@ class AppSettings:
         return fields
 
     def validate(self) -> None:
+        lookup_names = ('equipment_options', 'job_type_options', 'payment_type_options')
+        if not isinstance(self.inactive_options, dict) or any(k not in lookup_names for k in self.inactive_options):
+            raise ValueError('Unrecognised inactive choices.')
+        for attr, values in self.inactive_options.items():
+            if not isinstance(values, list) or any(not isinstance(v, str) or not v.strip() or v != v.strip() for v in values):
+                raise ValueError('Inactive choices must have a name.')
+            all_values = values + getattr(self, attr)
+            if len({v.casefold() for v in all_values}) != len(all_values):
+                raise ValueError('Active and inactive choices must have unique names.')
+        if not isinstance(self.default_payment_method, str) or (self.default_payment_method and self.default_payment_method not in self.payment_type_options):
+            raise ValueError('Choose an available default payment method.')
+        if not isinstance(self.remember_jobs_filters, bool):
+            raise ValueError('Remember filters must be on or off.')
+        if self.jobs_default_group not in ('date', 'completed', 'customer', 'status'):
+            raise ValueError('Choose a valid jobs grouping.')
+        if not isinstance(self.jobs_filters, dict) or any(k not in ('status', 'range', 'group', 'from', 'to') or not isinstance(v, str) for k, v in self.jobs_filters.items()):
+            raise ValueError('Invalid saved jobs filters.')
+        allowed = {'status': ('All', 'Upcoming', 'Overdue', *JOB_STATUSES, 'Trash'),
+                   'range': ('all', 'today', 'week', 'next7', 'month', 'custom'),
+                   'group': ('date', 'completed', 'customer', 'status')}
+        for key, values in allowed.items():
+            if key in self.jobs_filters and self.jobs_filters[key] not in values:
+                raise ValueError('Invalid saved jobs filter.')
+        from datetime import date
+        for key in ('from', 'to'):
+            if key in self.jobs_filters:
+                value = self.jobs_filters[key]
+                if date.fromisoformat(value).isoformat() != value:
+                    raise ValueError('Invalid saved filter date.')
         for name in ('equipment_options','job_type_options','payment_type_options'):
             options = getattr(self, name)
             if not isinstance(options, list) or any(not isinstance(v, str) or not v.strip() or v != v.strip() for v in options):
@@ -136,11 +176,17 @@ class AppSettings:
         for attr in ('customer_fields','job_fields'):
             if attr in data:
                 saved = [FieldDefinition.from_dict(f) for f in data[attr]]
+                # This core question now supports several choices. Retain saved
+                # labels, required/browse flags and all custom definitions.
+                for f in saved:
+                    if f.key in ('default_job_type','job_type') and f.field_type == 'dropdown':
+                        f.field_type = 'multiselect'
                 # Introduced core fields are added without dropping custom definitions.
                 keys = {f.key for f in saved}
                 saved.extend(copy.deepcopy(f) for f in getattr(settings, attr) if f.key not in keys)
                 setattr(settings, attr, saved)
-        for attr in ('equipment_options','job_type_options','payment_type_options'):
+        for attr in ('equipment_options','job_type_options','payment_type_options',
+                     'inactive_options','default_payment_method','remember_jobs_filters','jobs_default_group','jobs_filters'):
             if attr in data: setattr(settings, attr, data[attr])
         settings.validate()
         return settings

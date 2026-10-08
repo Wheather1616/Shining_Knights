@@ -1,13 +1,31 @@
 {
-  "tests": 145,
-  "passed": 144,
+  "tests": 244,
+  "passed": 243,
   "skipped": 1,
   "failures": 0,
   "errors": 0,
-  "line_percent": 94.71,
-  "branch_percent": 84.67,
-  "combined_percent": 92.51,
-  "environment": "Linux / Python 3.12.14 / Qt offscreen",
-  "native_ipc_skip": "Host denied Unix sockets with EPERM",
-  "macos_windows_ci": "Configured, not executed here"
+  "line_percent": 96.61,
+  "branch_percent": 87.11,
+  "combined_percent": 94.79,
+  "environment": "Linux / Python 3.12.14 / PySide6 6.11.2 / Qt offscreen",
+  "native_ipc_skip": "Opt-in; run --run-platform-tests on the target machine",
+  "macos_windows_ci": "Configured, not executed here",
+  "settings_regression_cases_added": 58,
+  "visual_checks": [
+    "All five Settings sections at 1250x820 and 900x690",
+    "Responsive services/equipment cards",
+    "Readable maroon controls",
+    "Scrolling content with fixed Save footer"
+  ],
+  "restore_validation": [
+    "Encrypted records and settings snapshots",
+    "Legacy record-only snapshots",
+    "Preserved customer-job links and Trash",
+    "Wrong-key/corrupt/unsupported/missing-column/link failures",
+    "Safety-copy creation failures",
+    "Database and settings rollback",
+    "Interrupted recovery",
+    "Backup changes after review",
+    "Commit cleanup rollback"
+  ]
 }
