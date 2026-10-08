@@ -1,6 +1,7 @@
 # ShiningKnights testing suite
 
-For the current customer-screen update, follow `CUSTOMER_SCREEN_UPDATE.md`.
+For the current customer workflow update, follow `CUSTOMER_WORKFLOW_UPDATE.md`.
+The latest result is in `VALIDATION.json`. The new tests cover separate names, numeric input, wheel-safe dropdowns, calendar selection, equipment grids, hours snapshots, encrypted version-1 migration and legacy backup restoration.
 
 This update provides automated tests for the PySide6 customer/job app and its
 encrypted SQLCipher database, plus a repeatable runner and CI workflow.
@@ -215,3 +216,18 @@ packaged builds, visual layout and failures not yet modelled by the suite.
 ## Settings and guided recovery update (7 October 2026)
 
 The latest suite contains 244 cases: 243 pass locally and the native IPC case is opt-in. New checks cover safe preference defaults and round trips, inactive catalogues, actual list-column changes, default payment on new customers only, automatic question identifiers, retained hidden answers, save/discard/keep-editing guards, filter persistence without search text, real encrypted restore and safety copies, invalid/wrong-key/unsupported backups, write rollback, interrupted recovery and rejection of backups changed after review. Settings geometry is checked at 1250 × 820 and 900 × 690. Use the existing platform commands above on Mac/Windows.
+
+
+## Multiple customer services
+
+`tests/integration/test_customer_services.py` exercises real encrypted version 1 and 2 upgrades, transactional rollback of the entire migration chain, customer/service ownership, snapshot pricing, usual-service synchronisation, archived services, validation and backup recovery. `tests/ui/test_customer_services.py` drives the service editor and customer screen, booking selection and overrides, unchanged historical jobs, customer changes, unfinished input preservation, service names in CSV and page geometry. `check_customer_services.py` provides reproducible synthetic previews. Current results are in `VALIDATION.json`; native platform tests remain opt-in.
+
+
+## Multiple nature-of-job choices
+
+`tests/integration/test_multiple_job_types.py` verifies list-valued work types, original version 3 data conversion, labels containing commas/JSON-like text, full migration-chain rollback, previous settings conversion, customer/usual-service synchronisation, job snapshots and backup recovery. `tests/ui/test_multiple_job_types.py` verifies independent tick interactions, saved selections, booking overrides, retired choices, readable CSV/history/Home output and grids without an internal scroll area. Current suite totals are in `VALIDATION.json`.
+
+
+## Per-type Inside / Outside / Both choices
+
+`tests/integration/test_service_sides.py` covers encrypted scope mappings, valid side values and selected-type ownership, customer/usual-service synchronisation, job snapshots, retired choices, migrations from versions 1 to 4, rollback after a last-step interruption, old/current backup restore and rejection of damaged scope data before replacing live records. `tests/ui/test_service_sides.py` covers conditional selectors beneath ticks, independent exclusive choices, keyboard activation, save/reopen, unticking, booking overrides, switching services without losing unfinished inputs, readable history/Jobs/Home/CSV output and layouts at 520 and 650 pixels. Results for the full suite are in `VALIDATION.json`.

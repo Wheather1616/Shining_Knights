@@ -36,7 +36,7 @@ def inspect_backup(backup, key_hex, live_path):
         if not {'customers', 'jobs', 'crm_schema'} <= tables:
             raise ValueError('This is not a customer and jobs backup.')
         versions = connection.execute('SELECT version FROM crm_schema').fetchall()
-        if len(versions) != 1 or versions[0][0] not in (1, 2, 3, SCHEMA_VERSION):
+        if len(versions) != 1 or versions[0][0] not in (1, 2, 3, 4, SCHEMA_VERSION):
             raise ValueError('This backup uses a different app version.')
         if connection.execute('PRAGMA foreign_key_check').fetchall():
             raise ValueError('Customer and job links in this backup are damaged.')
@@ -44,6 +44,9 @@ def inspect_backup(backup, key_hex, live_path):
         from .models import CustomerRecord, JobRecord
         required = {'customers': set(CustomerRecord.__dataclass_fields__) - {'default_fee'} | {'default_fee_cents'},
                     'jobs': set(JobRecord.__dataclass_fields__) - {'fee'} | {'fee_cents', 'deleted_at'}}
+        if versions[0][0] < 5:
+            required['customers'] -= {'default_job_type_sides'}
+            required['jobs'] -= {'job_type_sides'}
         if versions[0][0] == 1:
             required['customers'] -= {'first_name', 'last_name', 'default_hours'}
             required['jobs'] -= {'hours'}
@@ -56,6 +59,8 @@ def inspect_backup(backup, key_hex, live_path):
             if connection.execute('''SELECT 1 FROM jobs j JOIN customer_services s ON s.id=j.service_id
                 WHERE s.customer_id<>j.customer_id LIMIT 1''').fetchone():
                 raise ValueError('Customer and service links in this backup are damaged.')
+        if versions[0][0] >= 5:
+            required['customer_services'].add('job_type_sides')
         for table, columns in required.items():
             present = {row[1] for row in connection.execute(f'PRAGMA table_info({table})')}
             if not columns <= present:

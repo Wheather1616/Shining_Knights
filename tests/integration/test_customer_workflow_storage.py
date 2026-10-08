@@ -40,7 +40,7 @@ def test_additive_migration_preserves_names_ids_links_receipts_and_encryption(tm
     assert db.customer_summary(7)['next_due'] == '2026-11-02'
     assert db.list_customers('Heather')[0]['id'] == 7
     with db.connect() as conn:
-        assert conn.execute('SELECT version FROM crm_schema').fetchone()[0] == 4
+        assert conn.execute('SELECT version FROM crm_schema').fetchone()[0] == 5
         assert conn.execute('SELECT notes FROM receipts').fetchone()[0] == 'Keep inherited records'
         assert conn.execute('PRAGMA foreign_key_check').fetchall() == []
     assert not path.read_bytes().startswith(b'SQLite format 3')
@@ -80,7 +80,7 @@ def test_old_backup_is_inspected_without_changes_and_upgraded_only_when_staged(c
     assert context.db.get_job(11)['customer_id'] == 7
     assert CustomerDatabase(safety, key_hex=KEY).get_customer(later)['name'] == 'Later Customer'
     with context.db.connect() as conn:
-        assert conn.execute('SELECT version FROM crm_schema').fetchone()[0] == 4
+        assert conn.execute('SELECT version FROM crm_schema').fetchone()[0] == 5
     assert file_fingerprint(old) == original
 
 

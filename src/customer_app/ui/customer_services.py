@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFormLayout
     QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy, QVBoxLayout, QWidget)
 
 from ..models import ServiceRecord
-from .form_controls import ChoiceGrid, NumericInput
+from .form_controls import ChoiceGrid, WorkTypeGrid, NumericInput
 
 
 class ServiceDialog(QDialog):
@@ -30,10 +30,13 @@ class ServiceDialog(QDialog):
         self.name.setPlaceholderText('e.g. Indoor windows or Whole house')
         self.name.setAccessibleName('Service name')
         layout.addRow('Service name *', self.name)
-        self.job_type = ChoiceGrid(settings.job_type_options,values.get('job_type',[]),
+        self.job_type = WorkTypeGrid(settings.job_type_options,values.get('job_type',[]),values.get('job_type_sides',{}),
             empty_text='No job types available. Add them in Settings.')
         self.job_type.setAccessibleName('Nature of job')
         layout.addRow('Nature of job', self.job_type)
+        scope_hint = QLabel('Tick each type of work, then choose Inside, Outside or Both. Previous choices can stay unset until confirmed.')
+        scope_hint.setWordWrap(True); scope_hint.setObjectName('FormHelper')
+        layout.addRow('', scope_hint)
         pair = QWidget(); charges = QHBoxLayout(pair); charges.setContentsMargins(0,0,0,0)
         self.fee = NumericInput(r'[0-9]{0,9}(\.[0-9]{0,2})?', values.get('fee'))
         self.hours = NumericInput(r'[0-9]{0,4}(\.[0-9]{0,2})?', values.get('hours'))
@@ -55,7 +58,7 @@ class ServiceDialog(QDialog):
     def save(self):
         try:
             record = ServiceRecord(self.customer_id, name=self.name.text().strip(),
-                job_type=self.job_type.selected_values(), equipment=self.equipment.selected_values(),
+                job_type=self.job_type.selected_values(), job_type_sides=self.job_type.selected_sides(), equipment=self.equipment.selected_values(),
                 fee=self.fee.text().strip(), hours=self.hours.text().strip(), notes=self.notes.toPlainText().strip())
             if self.service_id:
                 self.db.update_service(self.service_id, record); self.saved_id = self.service_id

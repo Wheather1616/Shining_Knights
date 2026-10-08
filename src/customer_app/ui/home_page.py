@@ -1,6 +1,8 @@
 """A quiet, actionable overview of visits and customers needing a booking."""
 from datetime import date
 
+from ..models import work_description
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QHeaderView, QLabel,
     QPushButton, QScrollArea, QSizePolicy, QTableWidget, QTableWidgetItem,
@@ -170,7 +172,7 @@ class HomePage(QWidget):
         self.visits_table.setRowCount(len(rows))
         for row, job in enumerate(rows):
             when = 'Today' if job['scheduled_date'] == overview['as_of'] else date.fromisoformat(job['scheduled_date']).strftime('%a ') + short_date(job['scheduled_date'])
-            for col, value in enumerate((when, job['customer_name'], job['suburb'], job.get('service_name') or ', '.join(job['job_type']) or 'Not recorded')):
+            for col, value in enumerate((when, job['customer_name'], job['suburb'], job.get('service_name') or work_description(job['job_type'], job['job_type_sides']) or 'Not recorded')):
                 item = QTableWidgetItem(value)
                 item.setData(Qt.ItemDataRole.UserRole, job['id'])
                 item.setToolTip(value)

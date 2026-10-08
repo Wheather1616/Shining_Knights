@@ -197,6 +197,9 @@ class CustomerMainWindow(QMainWindow):
 
     def _field_value(self, record, f, entity):
         value = record.get(f.key) if f.key in CORE_FIELDS[entity] else record.get('custom_fields',{}).get(f.key)
+        if f.key in ('default_job_type', 'job_type'):
+            from ..models import work_description
+            return work_description(value or [], record.get(f.key + '_sides', {}))
         return display(value,f.field_type)
 
     def _fill_table(self, table, records, entity, extra=None):

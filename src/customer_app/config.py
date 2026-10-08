@@ -76,7 +76,7 @@ JOB_FIELDS = [
     FieldDefinition('service_name', 'Customer service', browse_column=True),
 ]
 CORE_FIELDS = {'customers': {f.key for f in CUSTOMER_FIELDS}, 'jobs': {f.key for f in JOB_FIELDS}}
-RESERVED_KEYS = {'service_id','is_default','id','customer_id','created_at','updated_at','deleted_at','custom_fields','fee_cents','default_fee_cents','jobs_completed','last_job','next_due'}
+RESERVED_KEYS = {'default_job_type_sides','job_type_sides','service_id','is_default','id','customer_id','created_at','updated_at','deleted_at','custom_fields','fee_cents','default_fee_cents','jobs_completed','last_job','next_due'}
 
 @dataclass
 class AppSettings:

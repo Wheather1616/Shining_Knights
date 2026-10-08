@@ -13,7 +13,7 @@ bash run_mac.sh
 bash run_tests.sh --run-platform-tests
 ```
 
-The first launch upgrades an existing version 1, 2 or 3 encrypted database to version 4. Use this updated app with the upgraded database. Existing encrypted version 1, 2 and 3 backups can still be inspected and restored; restore upgrades a private copy and retains the source backup.
+The first launch upgrades an existing version 1, 2, 3 or 4 encrypted database to version 5. Use this updated app with the upgraded database. Existing encrypted version 1, 2, 3 and 4 backups can still be inspected and restored; restore upgrades a private copy and retains the source backup.
 
 ## Use it
 
@@ -30,7 +30,7 @@ Charges are totals in AUD. Hours are estimates and never multiply the charge. Se
 
 Named services appear in job history, Jobs, the Home visit list and job CSV exports. Existing jobs are retained without guessing which new service they belonged to. Existing IDs, customer/job links, recorded charges, hours, custom answers and inherited receipt tables are preserved.
 
-Nature of job uses the same tick-box grid as equipment, allowing several types of work within one named service. See `MULTIPLE_JOB_TYPES_UPDATE.md` for this follow-up change.
+Nature of job uses the same tick-box grid as equipment, allowing several types of work within one named service. Each selected type now has an Inside / Outside / Both selector beneath it. See `SERVICE_SIDES_UPDATE.md` for the latest change and `MULTIPLE_JOB_TYPES_UPDATE.md` for the original multi-choice update.
 
 ## Validation
 

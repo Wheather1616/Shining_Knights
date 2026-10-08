@@ -89,6 +89,18 @@ QCheckBox::indicator:disabled, QAbstractItemView::indicator:disabled {
 QCheckBox::indicator:checked:disabled, QAbstractItemView::indicator:checked:disabled {
     background: #71656d; border-color: #71656d; image: @icon_tick@;
 }
+QFrame#WorkSideSelector {
+    background: @surface_soft@; border: 1px solid @border@; border-radius: 10px;
+}
+QPushButton[role="workSide"] {
+    background: transparent; color: @bordeaux_mid@; border: 1px solid transparent;
+    border-radius: 7px; padding: 5px 1px; min-height: 20px; font-size: 12px;
+}
+QPushButton[role="workSide"]:hover { background: #f0dfd8; }
+QPushButton[role="workSide"]:checked {
+    background: @bordeaux_mid@; color: @white@; border-color: @bordeaux_mid@;
+}
+QPushButton[role="workSide"]:focus { border: 1px solid @cyan@; }
 QScrollBar:horizontal { background: @surface_soft@; height: 12px; margin: 2px; }
 QScrollBar::handle:horizontal { background: #a6cbd3; border-radius: 4px; min-width: 30px; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }

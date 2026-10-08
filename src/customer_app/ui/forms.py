@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QCheckBox, QDialog, QDialogButt
     QLabel, QLineEdit, QMessageBox, QScrollArea, QVBoxLayout, QWidget)
 
 from ..config import CORE_FIELDS
-from .form_controls import ChoiceGrid, ClickComboBox, DateInput, IntervalSpinBox, NumericInput
+from .form_controls import ChoiceGrid, WorkTypeGrid, ClickComboBox, DateInput, IntervalSpinBox, NumericInput
 from ..models import CustomerRecord, JobRecord, ValidationError, job_types
 
 class RecordForm(QWidget):
@@ -54,7 +54,7 @@ class RecordForm(QWidget):
                     w.setCurrentIndex(max(0, w.findData(value or '')))
             elif f.field_type == 'multiselect':
                 if f.key in ('default_job_type','job_type'):
-                    w = ChoiceGrid(f.options,job_types(value),empty_text='No job types available. Add them in Settings.')
+                    w = WorkTypeGrid(f.options,job_types(value),values.get(f.key + '_sides', {}),empty_text='No job types available. Add them in Settings.')
                 else:
                     w = ChoiceGrid(f.options, value or [])
             elif f.field_type == 'textarea':
@@ -205,6 +205,8 @@ class RecordForm(QWidget):
                     value = parsed
             if f.key in CORE_FIELDS[self.entity]:
                 result[f.key] = value
+                if f.key in ('default_job_type', 'job_type'):
+                    result[f.key + '_sides'] = w.selected_sides()
             else:
                 result['custom_fields'][f.key] = value
         if self.entity == 'customers':
@@ -344,6 +346,7 @@ class JobDialog(QDialog):
         # custom-field input. No whole-form validation is needed for selection.
         for option,checkbox in self.form.widgets['job_type'].checkboxes.items():
             checkbox.setChecked(option in values['job_type'])
+        self.form.widgets['job_type'].set_sides(values['job_type_sides'])
         for option,checkbox in self.form.widgets['equipment'].checkboxes.items():
             checkbox.setChecked(option in values['equipment'])
         for key in ('fee','hours'):

@@ -22,7 +22,7 @@ with TemporaryDirectory(prefix='customer-services-preview-') as temporary:
         default_job_type='Internal windows',default_fee='500',default_hours='3'))
     usual=db.list_services(cid)[0]
     db.update_service(usual['id'],ServiceRecord(cid,'Indoor windows','Internal windows',['3m ladder'],'500','3'))
-    whole=db.create_service(ServiceRecord(cid,'Whole house',['Internal windows','External windows','Screens'],['Water-fed pole','3m ladder'],'600','4'))
+    whole=db.create_service(ServiceRecord(cid,'Whole house',['Internal windows','External windows','Screens'],['Water-fed pole','3m ladder'],'600','4',job_type_sides={'Internal windows':'inside','External windows':'outside','Screens':'both'}))
     db.create_job(db.new_job_for_customer(cid,'2026-10-12',service_id=whole))
     window=CustomerMainWindow(db=db,settings_store=store,enable_backups=False);window.show()
     window.tabs.setCurrentIndex(1);window.customer_table.selectRow(0)

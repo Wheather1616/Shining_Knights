@@ -11,10 +11,10 @@ from typing import Any
 
 from .config import AppSettings, CORE_FIELDS
 from .db_crypto import is_plaintext_sqlite, migrate_plaintext_database, open_encrypted_connection, verify_encrypted_database
-from .models import CustomerRecord, JobRecord, ServiceRecord, ValidationError, add_interval, hours_text, job_types, money_text, money_to_cents
+from .models import CustomerRecord, JobRecord, ServiceRecord, ValidationError, add_interval, hours_text, job_types, money_text, money_to_cents, work_sides
 from .security import SecureKeyStore
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 SERVICE_SCHEMA = '''
 CREATE TABLE customer_services (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,8 +71,11 @@ CREATE INDEX idx_jobs_customer ON jobs(customer_id);
 CREATE INDEX idx_jobs_schedule ON jobs(scheduled_date, status, deleted_at);
 CREATE INDEX idx_jobs_completed ON jobs(completed_date, status, deleted_at);
 ''' + SERVICE_SCHEMA + '''
+ALTER TABLE customers ADD COLUMN default_job_type_sides TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE jobs ADD COLUMN job_type_sides TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE customer_services ADD COLUMN job_type_sides TEXT NOT NULL DEFAULT '{}';
 CREATE TABLE crm_schema (version INTEGER NOT NULL);
-INSERT INTO crm_schema VALUES(4);
+INSERT INTO crm_schema VALUES(5);
 '''
 
 def _now() -> str:
@@ -110,7 +113,7 @@ class CustomerDatabase:
             tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if 'crm_schema' in tables:
                 versions = conn.execute('SELECT version FROM crm_schema').fetchall()
-                if len(versions) != 1 or versions[0][0] not in (1, 2, 3, SCHEMA_VERSION):
+                if len(versions) != 1 or versions[0][0] not in (1, 2, 3, 4, SCHEMA_VERSION):
                     raise ValidationError('Unsupported customer database version. No schema changes were made.')
                 if versions[0][0] == 1:
                     self._migrate_v1(conn)
@@ -118,6 +121,8 @@ class CustomerDatabase:
                     self._migrate_v2(conn)
                 if versions[0][0] < 4:
                     self._migrate_v3(conn)
+                if versions[0][0] < 5:
+                    self._migrate_v4(conn)
             elif 'customers' in tables or 'jobs' in tables:
                 raise ValidationError('This database already has an unrecognised customer/job schema. Use a new file; the original has been preserved.')
             else:
@@ -164,6 +169,14 @@ class CustomerDatabase:
                 conn.execute(f'UPDATE {table} SET {column}=? WHERE id=?',
                              (json.dumps([value] if value else [],ensure_ascii=False),row['id']))
         conn.execute('UPDATE crm_schema SET version=4')
+
+    @staticmethod
+    def _migrate_v4(conn):
+        if not conn.in_transaction:
+            conn.execute('BEGIN IMMEDIATE')
+        for table, column in [('customers', 'default_job_type_sides'), ('jobs', 'job_type_sides'), ('customer_services', 'job_type_sides')]:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT '{{}}'")
+        conn.execute('UPDATE crm_schema SET version=5')
 
     def _validate_fields(self, entity: str, values: dict[str, Any], previous: dict[str, Any] | None = None) -> dict[str, Any]:
         previous = previous or {}
@@ -236,7 +249,9 @@ class CustomerDatabase:
             raise ValidationError('Repeat interval must be a whole number from 1 to 3650, with a repeat unit.')
         v['default_fee_cents'] = money_to_cents(v.pop('default_fee'))
         v['default_hours'] = hours_text(v['default_hours'])
+        v['default_job_type_sides'] = work_sides(v['default_job_type_sides'], v['default_job_type'])
         v['search_text'] = _search(v)
+        v['default_job_type_sides'] = json.dumps(v['default_job_type_sides'], ensure_ascii=False)
         v['default_job_type'] = json.dumps(v['default_job_type'],ensure_ascii=False)
         v['default_equipment'] = json.dumps(v['default_equipment'], ensure_ascii=False)
         v['custom_fields'] = json.dumps(v['custom_fields'], ensure_ascii=False, allow_nan=False)
@@ -255,6 +270,7 @@ class CustomerDatabase:
             raise ValidationError('A completed date cannot be in the future.')
         v['fee_cents'] = money_to_cents(v.pop('fee'))
         v['hours'] = hours_text(v['hours'])
+        v['job_type_sides'] = json.dumps(work_sides(v['job_type_sides'], v['job_type']), ensure_ascii=False)
         v['job_type'] = json.dumps(v['job_type'],ensure_ascii=False)
         v['equipment'] = json.dumps(v['equipment'], ensure_ascii=False)
         v['custom_fields'] = json.dumps(v['custom_fields'], ensure_ascii=False, allow_nan=False)
@@ -280,11 +296,13 @@ class CustomerDatabase:
         v['custom_fields'] = json.loads(v['custom_fields'])
         if entity == 'customers':
             v['default_job_type'] = job_types(json.loads(v['default_job_type']))
+            v['default_job_type_sides'] = work_sides(json.loads(v['default_job_type_sides']), v['default_job_type'])
             v['default_equipment'] = json.loads(v['default_equipment'])
             v['default_fee'] = money_text(v['default_fee_cents']) or None
             v['active'] = bool(v['active'])
         else:
             v['job_type'] = job_types(json.loads(v['job_type']))
+            v['job_type_sides'] = work_sides(json.loads(v['job_type_sides']), v['job_type'])
             v['equipment'] = json.loads(v['equipment'])
             v['fee'] = money_text(v['fee_cents']) or None
         return v
@@ -330,7 +348,8 @@ class CustomerDatabase:
     @staticmethod
     def _usual_service_values(customer_id, customer):
         return {'customer_id':customer_id, 'name':'Usual service',
-                'job_type':customer['default_job_type'], 'equipment':customer['default_equipment'],
+                'job_type':customer['default_job_type'], 'job_type_sides':customer['default_job_type_sides'],
+                'equipment':customer['default_equipment'],
                 'fee_cents':customer['default_fee_cents'], 'hours':customer['default_hours'],
                 'notes':'', 'active':1, 'is_default':1}
 
@@ -340,6 +359,7 @@ class CustomerDatabase:
             return None
         value = dict(row)
         value['job_type'] = job_types(json.loads(value['job_type']))
+        value['job_type_sides'] = work_sides(json.loads(value['job_type_sides']), value['job_type'])
         value['equipment'] = json.loads(value['equipment'])
         value['fee'] = money_text(value['fee_cents']) or None
         value['active'], value['is_default'] = bool(value['active']), bool(value['is_default'])
@@ -371,6 +391,7 @@ class CustomerDatabase:
         if not isinstance(equipment,list) or any(not isinstance(v,str) or (v not in self.settings.equipment_options and v not in previous.get('equipment',[])) for v in equipment):
             raise ValidationError('Choose configured equipment.')
         return {'customer_id':record.customer_id,'name':record.name.strip(), 'job_type':json.dumps(types,ensure_ascii=False),
+                'job_type_sides':json.dumps(work_sides(record.job_type_sides, types),ensure_ascii=False),
                 'equipment':json.dumps(list(dict.fromkeys(record.equipment)),ensure_ascii=False),
                 'fee_cents':money_to_cents(record.fee),'hours':hours_text(record.hours),'notes':record.notes.strip()}
 
@@ -405,10 +426,11 @@ class CustomerDatabase:
         customer = self._decode(conn.execute('SELECT * FROM customers WHERE id=?',(customer_id,)).fetchone(),'customers')
         # Only change service defaults. Historical contact details and newly
         # required custom questions must not block editing a reusable service.
-        values = {'default_job_type':service['job_type'], 'default_equipment':service['equipment'],
+        values = {'default_job_type':service['job_type'], 'default_job_type_sides':service['job_type_sides'],
+                  'default_equipment':service['equipment'],
                   'default_fee_cents':service['fee_cents'],'default_hours':service['hours']}
         searchable = {k:customer[k] for k in CustomerRecord.__dataclass_fields__}
-        searchable.update(default_job_type=json.loads(service['job_type']),default_equipment=json.loads(service['equipment']),
+        searchable.update(default_job_type=json.loads(service['job_type']),default_job_type_sides=json.loads(service['job_type_sides']),default_equipment=json.loads(service['equipment']),
                           default_fee=money_text(service['fee_cents']) or None,default_hours=service['hours'])
         values['search_text'] = _search(searchable)
         self._update(conn,'customers',customer_id,values)
@@ -439,6 +461,7 @@ class CustomerDatabase:
         if service is None: raise ValidationError('Choose an available service belonging to this customer.')
         return JobRecord(customer_id=customer_id, scheduled_date=scheduled_date,
                          job_type=[v for v in service['job_type'] if v in self.settings.job_type_options],
+                         job_type_sides={k:v for k,v in service['job_type_sides'].items() if k in self.settings.job_type_options},
                          equipment=[v for v in service['equipment'] if v in self.settings.equipment_options],
                          fee=service['fee'],hours=service['hours'], notes=service['notes'],
                          service_id=service['id'],service_name=service['name'],

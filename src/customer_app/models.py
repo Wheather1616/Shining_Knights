@@ -46,6 +46,21 @@ def job_types(value: Any) -> list[str]:
         raise ValidationError('Nature of job must contain a list of named choices.')
     return list(dict.fromkeys(value))
 
+SIDE_LABELS = {'inside': 'Inside', 'outside': 'Outside', 'both': 'Both'}
+
+def work_sides(value: Any, selected: list[str]) -> dict[str, str]:
+    """Only selected work types may carry a known side; old records can be unset."""
+    if not isinstance(value, dict) or any(
+        not isinstance(key, str) or key not in selected or
+        not isinstance(side, str) or side not in SIDE_LABELS
+        for key, side in value.items()
+    ):
+        raise ValidationError('Choose Inside, Outside or Both for a selected nature of job.')
+    return {key: value[key] for key in selected if key in value}
+
+def work_description(selected, sides):
+    return ', '.join(f'{name} ({SIDE_LABELS[sides[name]]})' if name in sides else name for name in selected)
+
 def add_interval(anchor: str, value: int | None, unit: str) -> str | None:
     if not anchor or value is None or not unit: return None
     d = date.fromisoformat(anchor)
@@ -79,6 +94,7 @@ class CustomerRecord:
     first_name: str = ''
     last_name: str = ''
     default_hours: str | None = None
+    default_job_type_sides: dict[str, str] = field(default_factory=dict)
 
 @dataclass
 class JobRecord:
@@ -96,6 +112,7 @@ class JobRecord:
     hours: str | None = None
     service_id: int | None = None
     service_name: str = ''
+    job_type_sides: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -108,3 +125,4 @@ class ServiceRecord:
     fee: str | None = None
     hours: str | None = None
     notes: str = ''
+    job_type_sides: dict[str, str] = field(default_factory=dict)

@@ -4,7 +4,7 @@ A PySide6 desktop app for a window-cleaning business, with linked customers/jobs
 
 ## Update an existing project
 
-Close the app, extract `customer-workflow-update.zip` into the project root and replace the included files. Keep the `src/customer_app/` and `tests/` paths intact. Run `bash run_mac.sh` or `run_windows.bat`. See `CUSTOMER_WORKFLOW_UPDATE.md` for the full change list and installation steps. The first launch upgrades version-1 customer databases to version 2 in a transaction, adding separate name fields and optional hours without changing record IDs or job links. Existing full names remain intact. Backups, the virtual environment and credentials stay in their existing locations.
+Close the app, extract `customer-services-update.zip` into the project root and merge the included files, keeping `src/customer_app/`, `tests/` and the root launch files at their matching paths. Run `bash run_mac.sh` or `run_windows.bat`. See `SERVICE_SIDES_UPDATE.md` for the latest change and installation steps. The first launch upgrades database versions 1 to 4 transactionally to version 5. Existing customer and job links, names, prices and hours remain intact; new Inside / Outside / Both fields start unset. Existing backups, the virtual environment and credentials stay in their current locations.
 
 ## Fresh setup
 
@@ -74,6 +74,8 @@ bash run_tests.sh --run-platform-tests
 
 On Windows use `.venv\Scripts\python.exe -m pip install -r requirements-test.txt` and `run_tests.bat`. See `TESTING.md` for coverage, isolation and platform checks.
 
-Latest validation: 384 tests passed, 1 native-platform test skipped, with 95.48% combined line/branch coverage. Detailed results are recorded in `VALIDATION.json`. It covers encrypted database queries and links, multiple-service storage and price snapshots, migration and backup restore, and Qt interactions. Customers, Services and the service editor were checked at normal and minimum supported sizes. Native Mac/Windows testing and packaged app checks remain to be run on those operating systems.
+Latest validation: 413 tests passed, 1 native-platform test skipped, with 95.58% combined line/branch coverage. Detailed results are recorded in `VALIDATION.json`. It covers encrypted database queries and links, multiple-service storage and price snapshots, migration and backup restore, and Qt interactions. Customers, Services and the service editor were checked at normal and minimum supported sizes. Native Mac/Windows testing and packaged app checks remain to be run on those operating systems.
 
 After source verification on the target computer, `bash build_mac.sh` builds `dist/ShiningKnights.app`; `build_windows.bat` builds the Windows output folder. These scripts use `requirements-build.txt`. Copy the complete Windows build folder. Native packaging must be tested on its corresponding OS.
+
+For per-type Inside / Outside / Both choices, see `SERVICE_SIDES_UPDATE.md`. This release upgrades the encrypted database to schema version 5.

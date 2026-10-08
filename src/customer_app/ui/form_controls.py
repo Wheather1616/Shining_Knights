@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QDate, QRegularExpression, Qt
 from PySide6.QtGui import QIcon, QRegularExpressionValidator
 from PySide6.QtWidgets import (QCalendarWidget, QCheckBox, QComboBox, QFrame,
-    QGridLayout, QHBoxLayout, QLabel, QLineEdit, QSizePolicy, QSpinBox, QVBoxLayout, QWidget)
+    QButtonGroup, QPushButton, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QSizePolicy, QSpinBox, QVBoxLayout, QWidget)
 
 
 class ClickComboBox(QComboBox):
@@ -156,3 +156,66 @@ class ChoiceGrid(QWidget):
 
     def selected_values(self):
         return [option for option, checkbox in self.checkboxes.items() if checkbox.isChecked()]
+
+
+class WorkTypeGrid(ChoiceGrid):
+    """Tick work types, then choose the side beneath each selected type."""
+    def __init__(self, options, selected=(), sides=None, parent=None, **kwargs):
+        super().__init__(options, selected, parent, **kwargs)
+        self.side_buttons = {}
+        self.side_frames = {}
+        self.side_groups = {}
+        for option, entry in zip(self.checkboxes, self.entries):
+            checkbox = self.checkboxes[option]
+            row = entry.layout()
+            # Retain the existing label/tick row, with its side control below.
+            heading = QWidget()
+            heading.setLayout(row)
+            column = QVBoxLayout(entry)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.setSpacing(6)
+            column.addWidget(heading)
+            below = QHBoxLayout()
+            below.setContentsMargins(0, 0, 0, 0)
+            below.addSpacing(26)
+            frame = QFrame()
+            frame.setObjectName('WorkSideSelector')
+            frame.setAccessibleName(f'{option}: inside, outside or both')
+            segments = QHBoxLayout(frame)
+            segments.setContentsMargins(3, 3, 3, 3)
+            segments.setSpacing(2)
+            group = QButtonGroup(frame)
+            group.setExclusive(True)
+            buttons = {}
+            for side, caption in [('inside', 'Inside'), ('outside', 'Outside'), ('both', 'Both')]:
+                button = QPushButton(caption)
+                button.setProperty('role', 'workSide')
+                button.setCheckable(True)
+                button.setAutoDefault(False)
+                button.setMinimumWidth(0)
+                button.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+                button.setAccessibleName(f'{option}: {caption}')
+                group.addButton(button)
+                segments.addWidget(button, 1)
+                buttons[side] = button
+            below.addWidget(frame, 1)
+            column.addLayout(below)
+            column.addStretch()
+            frame.setVisible(checkbox.isChecked())
+            checkbox.toggled.connect(frame.setVisible)
+            self.side_buttons[option] = buttons
+            self.side_frames[option] = frame
+            self.side_groups[option] = group
+        self.set_sides(sides or {})
+
+    def set_sides(self, sides):
+        # Replacing a selected service must also clear the previous side choices.
+        for option, group in self.side_groups.items():
+            group.setExclusive(False)
+            for side, button in self.side_buttons[option].items():
+                button.setChecked(sides.get(option) == side)
+            group.setExclusive(True)
+
+    def selected_sides(self):
+        return {option: side for option in self.selected_values()
+                for side, button in self.side_buttons[option].items() if button.isChecked()}

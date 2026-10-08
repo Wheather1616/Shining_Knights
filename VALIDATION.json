@@ -1,31 +1,29 @@
 {
-  "tests": 244,
-  "passed": 243,
-  "skipped": 1,
+  "tests": 414,
   "failures": 0,
   "errors": 0,
-  "line_percent": 96.61,
-  "branch_percent": 87.11,
-  "combined_percent": 94.79,
+  "skipped": 1,
+  "passed": 413,
+  "line_percent": 97.19,
+  "branch_percent": 88.62,
+  "combined_percent": 95.58,
   "environment": "Linux / Python 3.12.14 / PySide6 6.11.2 / Qt offscreen",
   "native_ipc_skip": "Opt-in; run --run-platform-tests on the target machine",
-  "macos_windows_ci": "Configured, not executed here",
-  "settings_regression_cases_added": 58,
-  "visual_checks": [
-    "All five Settings sections at 1250x820 and 900x690",
-    "Responsive services/equipment cards",
-    "Readable maroon controls",
-    "Scrolling content with fixed Save footer"
+  "service_side_cases_added": 29,
+  "database_schema_version": 5,
+  "legacy_backup_versions_supported": [
+    1,
+    2,
+    3,
+    4
   ],
-  "restore_validation": [
-    "Encrypted records and settings snapshots",
-    "Legacy record-only snapshots",
-    "Preserved customer-job links and Trash",
-    "Wrong-key/corrupt/unsupported/missing-column/link failures",
-    "Safety-copy creation failures",
-    "Database and settings rollback",
-    "Interrupted recovery",
-    "Backup changes after review",
-    "Commit cleanup rollback"
-  ]
+  "native_platform_packaging": "Not executed on this Linux host",
+  "visual_checks": [
+    "Service editor with independent maroon side buttons at 650 and 520 pixel widths",
+    "Service and job forms with actual saved side choices",
+    "No inner choice scrolling or horizontal form scrolling at minimum supported size",
+    "Human-readable history, Jobs, Home and CSV descriptions"
+  ],
+  "migration": "Versions 1 to 4 upgrade to version 5 with empty side mappings. No scope is guessed. Interruption at the last step rolls back the whole migration chain.",
+  "historical_jobs": "Saved scopes, fee and hours remain independent of subsequent service changes."
 }
