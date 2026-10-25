@@ -1,25 +1,32 @@
-"""Customer application shell and tab navigation."""
+"""Shining Knights shell: warm, horizontal navigation with a soft active state."""
 from .tokens import themed
 
 SHELL_QSS = themed(r'''
 QMainWindow, QDialog, QWidget#AppShell,
 QWidget#HomePage, QWidget#CustomersPage, QWidget#JobsPage,
-QWidget#SettingsPage, QWidget#SettingsContent {
-    background: @canvas@;
-}
+QWidget#SettingsPage, QWidget#SettingsContent { background: @canvas@; }
 QWidget#CustomerProfileCard, QWidget#LookupSettingsCard, QWidget#RecordForm {
-    background: @surface@;
-    border: 1px solid @border@;
-    border-radius: 12px;
+    background: @surface@; border: 1px solid @border@; border-radius: 12px;
 }
 QWidget#LookupSettingsCard QLabel, QWidget#RecordForm QLabel {
     color: @text@; background: transparent; border: none;
 }
-QWidget#AppHeader { background: @canvas@; border-bottom: 1px solid @border_strong@; }
-QLabel#AppBrand { color: @bordeaux@; font-family: @font_regular@; font-size: 28px; }
-QPushButton#AppNavigation { background: transparent; color: @text@; border: 1px solid transparent; border-radius: 9px; padding: 10px 18px; font-family: @font_body@; font-size: 15px; }
+QWidget#AppHeader {
+    background: @surface@; border-bottom: 1px solid @border@;
+}
+QLabel#AppBrand {
+    color: @bordeaux@; font-family: @font_regular@; font-size: 28px;
+}
+QPushButton#AppNavigation {
+    background: transparent; color: @text@; border: 1px solid transparent;
+    border-radius: 10px; padding: 9px 16px;
+    font-family: @font_body@; font-size: 14px;
+}
 QPushButton#AppNavigation:hover { background: @surface_soft@; color: @bordeaux_mid@; }
-QPushButton#AppNavigation:checked { background: @bordeaux_mid@; color: @white@; }
+QPushButton#AppNavigation:checked {
+    background: #F9EAE8; color: @bordeaux@; border-color: #F3DAD8;
+    font-weight: 600;
+}
 QPushButton#AppNavigation:focus { border-color: @cyan@; }
 QTabWidget#AppTabs::pane { border: none; }
 QTabWidget::pane {

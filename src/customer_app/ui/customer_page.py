@@ -24,34 +24,57 @@ def label(text='', name='CustomerValue'):
 
 
 class DirectoryDelegate(QStyledItemDelegate):
+    """Compact customer cards with an accent rail for the selected customer."""
+
     def paint(self, painter, option, index):
-        lines = str(index.data(Qt.ItemDataRole.DisplayRole)).split('\n')
+        lines = str(index.data(Qt.ItemDataRole.DisplayRole) or '').split('\n')
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
-        rect = option.rect.adjusted(1, 4, -1, -4)
+        rect = option.rect.adjusted(2, 3, -4, -3)
+
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setClipRect(option.rect)
         painter.fillRect(option.rect, QColor('#fffdfb'))
-        painter.setPen(QColor('#c6e5eb' if selected else '#e5dad3'))
-        painter.setBrush(QColor('#eef8fa' if selected else '#f8f3ef' if hovered else '#fffdfb'))
-        painter.drawRoundedRect(rect, 10, 10)
-        if option.state & QStyle.StateFlag.State_HasFocus:
-            painter.setPen(QColor('#258ea6'))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 9, 9)
-        text_rect = rect.adjusted(12, 10, -12, -10)
-        y = text_rect.top()
-        for i, text in enumerate(lines):
+        painter.setPen(QColor('#c6e5eb' if selected else '#e9e0da'))
+        painter.setBrush(QColor('#edf8fa' if selected else '#faf5f1' if hovered else '#fffdfb'))
+        painter.drawRoundedRect(rect, 11, 11)
+        if selected:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor('#258ea6'))
+            painter.drawRoundedRect(rect.adjusted(0, 1, -rect.width() + 4, -1), 2, 2)
+
+        text_rect = rect.adjusted(16, 11, -29, -8)
+        top = text_rect.top()
+        sizes = (14, 12, 12)
+        for i, line in enumerate(lines):
             font = QFont(option.font)
-            if i == 0:
-                font.setWeight(QFont.Weight.DemiBold)
-                font.setPixelSize(15)
+            font.setPixelSize(sizes[min(i, 2)])
+            font.setWeight(QFont.Weight.DemiBold if i == 0 else QFont.Weight.Normal)
             metrics = QFontMetrics(font)
             painter.setFont(font)
             painter.setPen(QColor('#302a30' if i == 0 else '#6b6267'))
-            painter.drawText(text_rect.left(), y + metrics.ascent(), metrics.elidedText(text, Qt.TextElideMode.ElideRight, text_rect.width()))
-            y += metrics.height() + 2
+            painter.drawText(text_rect.left(), top + metrics.ascent(),
+                             metrics.elidedText(line, Qt.TextElideMode.ElideRight, text_rect.width()))
+            top += metrics.height() + (3 if i == 0 else 1)
+            if top > rect.bottom() - 8:
+                break
+
+        arrow_font = QFont(option.font)
+        arrow_font.setPixelSize(22)
+        painter.setFont(arrow_font)
+        painter.setPen(QColor('#258ea6' if selected else '#8a8185'))
+        painter.drawText(rect.adjusted(0, 0, -13, 0),
+                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, '›')
+        if option.state & QStyle.StateFlag.State_HasFocus:
+            painter.setPen(QColor('#258ea6'))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 10, 10)
         painter.restore()
+
+    def sizeHint(self, option, index):
+        lines = str(index.data(Qt.ItemDataRole.DisplayRole) or '').split('\n')
+        return QSize(200, max(83, 43 + 17 * len(lines)))
 
 
 class HistoryDelegate(QStyledItemDelegate):
@@ -87,42 +110,63 @@ class CustomerPage(QWidget):
         self.owner = owner
         self.setObjectName('CustomersPage')
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 18, 24, 18)
+        layout.setContentsMargins(24, 20, 24, 18)
         layout.setSpacing(16)
+
+        # Page actions and customer search have deliberately different roles.
         heading = QHBoxLayout()
-        heading.addWidget(label('Customers', 'CustomersTitle'), 1)
-        heading.addWidget(owner._button('Export CSV', owner.export_customers))
-        heading.addWidget(owner._button('Add customer', owner.add_customer))
+        heading.setSpacing(12)
+        titles = QVBoxLayout()
+        titles.setSpacing(3)
+        titles.addWidget(label('CUSTOMER WORKSPACE', 'CustomersKicker'))
+        titles.addWidget(label('Customers', 'CustomersTitle'))
+        titles.addWidget(label('Manage customers, service details and visit history.', 'CustomersSubtitle'))
+        heading.addLayout(titles, 1)
+        export_button = owner._button('Export CSV', owner.export_customers)
+        export_button.setObjectName('CustomerExportButton')
+        export_button.setProperty('role', 'accent')
+        self.new_customer_button = owner._button('+  Add customer', owner.add_customer)
+        self.new_customer_button.setObjectName('CustomerAddButton')
+        self.new_customer_button.setProperty('role', 'primary')
+        heading.addWidget(export_button)
+        heading.addWidget(self.new_customer_button)
         layout.addLayout(heading)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setObjectName('CustomerSplitter')
         self.splitter.setChildrenCollapsible(False)
-        self.splitter.setHandleWidth(12)
+        self.splitter.setHandleWidth(14)
         directory = QWidget()
         directory.setObjectName('CustomerDirectory')
-        directory.setMinimumWidth(230)
-        directory.setMaximumWidth(420)
+        directory.setMinimumWidth(240)
+        directory.setMaximumWidth(380)
         left = QVBoxLayout(directory)
-        left.setContentsMargins(18, 18, 18, 18)
+        left.setContentsMargins(15, 15, 15, 12)
         left.setSpacing(10)
-        left.addWidget(label('Find a customer', 'CustomerCaption'))
         self.search = QLineEdit()
-        self.search.setPlaceholderText('Name, suburb, phone…')
+        self.search.setObjectName('CustomerSearch')
+        self.search.setPlaceholderText('Search name, suburb or phone…')
+        self.search.setClearButtonEnabled(True)
         self.search.setAccessibleName('Search customers')
         self.search.textChanged.connect(owner.refresh_customers)
         left.addWidget(self.search)
+        directory_heading = QHBoxLayout()
+        directory_heading.setSpacing(6)
         self.inactive = QCheckBox('Include inactive')
         self.inactive.toggled.connect(owner.refresh_customers)
-        left.addWidget(self.inactive)
-        self.count = label('0 customers', 'CustomerCaption')
-        directory_heading = QHBoxLayout()
-        directory_heading.addWidget(self.count, 1)
+        directory_heading.addWidget(self.inactive, 1)
+        self.count = label('0 customers', 'CustomerDirectoryCount')
+        self.count.setWordWrap(False)
+        directory_heading.addWidget(self.count)
+        left.addLayout(directory_heading)
+        self.show_directory_details = False
+        # Keep the existing directory-detail capability without permanently
+        # occupying the row beside the customer count.
         self.details_button = owner._button('More detail', self.toggle_directory_details)
         self.details_button.setProperty('role', 'link')
-        directory_heading.addWidget(self.details_button)
-        self.show_directory_details = False
-        left.addLayout(directory_heading)
+        self.details_button.setObjectName('CustomerDirectoryDetailsButton')
+        self.details_button.setToolTip('Show additional configured customer fields in the list')
+        left.addWidget(self.details_button, 0, Qt.AlignmentFlag.AlignRight)
         self.directory_empty = label('No customers yet. Use Add customer to get started.', 'CustomerEmpty')
         left.addWidget(self.directory_empty)
         self.customer_table = QTableWidget(0, 1)
@@ -134,6 +178,7 @@ class CustomerPage(QWidget):
         self.customer_table.setShowGrid(False)
         self.customer_table.setAlternatingRowColors(False)
         self.customer_table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.customer_table.setMouseTracking(True)
         self.customer_table.setAccessibleName('Customer directory')
         self.customer_table.itemSelectionChanged.connect(owner.show_selected_customer)
         self.customer_table.cellDoubleClicked.connect(lambda *_: owner.edit_customer())
@@ -142,60 +187,96 @@ class CustomerPage(QWidget):
 
         self.stack = QStackedWidget()
         self.stack.setMinimumWidth(0)
-        self.empty = label('Select a customer to see their details and linked jobs.', 'CustomerEmpty')
+        self.empty = label('Select a customer from the list to see their profile and jobs.', 'CustomerEmpty')
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.stack.addWidget(self.empty)
         self.workspace = QWidget()
+        self.workspace.setObjectName('CustomerWorkspace')
         right = QVBoxLayout(self.workspace)
         right.setContentsMargins(0, 0, 0, 0)
-        right.setSpacing(16)
+        right.setSpacing(14)
+
+        # The bounded profile scrolls when the window is short. The job history
+        # remains an independent scrollable view below it.
         self.overview_scroll = QScrollArea()
         self.overview_scroll.setObjectName('CustomerOverviewScroll')
         self.overview_scroll.setWidgetResizable(True)
-        self.overview_scroll.setMinimumHeight(226)
-        self.overview_scroll.setMaximumHeight(260)
+        self.overview_scroll.setMinimumHeight(275)
+        self.overview_scroll.setMaximumHeight(315)
         self.overview_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         overview = QWidget()
         overview.setObjectName('CustomerProfileCard')
         card = QVBoxLayout(overview)
-        card.setContentsMargins(18, 16, 18, 16)
-        card.setSpacing(14)
+        card.setContentsMargins(22, 17, 22, 17)
+        card.setSpacing(12)
+
         title = QHBoxLayout()
+        title.setSpacing(12)
         self.name = label('', 'CustomerName')
+        self.name.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.status = label('', 'CustomerStatus')
         self.status.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self.status.setWordWrap(False)
         self.edit_customer_button = owner._button('Edit customer', owner.edit_customer)
+        self.edit_customer_button.setObjectName('CustomerEditButton')
         title.addWidget(self.name, 1)
-        title.addWidget(self.status)
+        title.addWidget(self.status, 0, Qt.AlignmentFlag.AlignVCenter)
         title.addWidget(self.edit_customer_button)
         card.addLayout(title)
+
         contact = QGridLayout()
         contact.setHorizontalSpacing(24)
-        contact.setVerticalSpacing(4)
-        contact.addWidget(label('Service address', 'CustomerCaption'), 0, 0)
-        contact.addWidget(label('Contact', 'CustomerCaption'), 0, 1)
-        self.profile = label()  # Address, kept accessible independently of the name.
+        contact.setVerticalSpacing(3)
+        contact.addWidget(label('SERVICE ADDRESS', 'CustomerInfoCaption'), 0, 0)
+        contact.addWidget(label('CONTACT', 'CustomerInfoCaption'), 0, 1)
+        self.profile = label()
         self.contact = label()
         contact.addWidget(self.profile, 1, 0)
         contact.addWidget(self.contact, 1, 1)
         contact.setColumnStretch(0, 1)
         contact.setColumnStretch(1, 1)
         card.addLayout(contact)
+
+        self.quick_info_panel = QWidget()
+        self.quick_info_panel.setObjectName('CustomerQuickInfo')
+        info_grid = QGridLayout(self.quick_info_panel)
+        info_grid.setContentsMargins(0, 0, 0, 0)
+        info_grid.setHorizontalSpacing(9)
+        info_grid.setVerticalSpacing(7)
+        self.quick_info = {}
+        for column, (key, caption) in enumerate((('suburb', 'SUBURB'),
+                ('frequency', 'VISIT FREQUENCY'), ('payment', 'USUAL PAYMENT'))):
+            chip = QWidget()
+            chip.setObjectName('CustomerInfoChip')
+            chip_layout = QVBoxLayout(chip)
+            chip_layout.setContentsMargins(12, 7, 12, 7)
+            chip_layout.setSpacing(2)
+            chip_layout.addWidget(label(caption, 'CustomerChipCaption'))
+            value = label('', 'CustomerChipValue')
+            value.setWordWrap(False)
+            chip_layout.addWidget(value)
+            info_grid.addWidget(chip, 0, column)
+            info_grid.setColumnStretch(column, 1)
+            self.quick_info[key] = value
+        card.addWidget(self.quick_info_panel)
+
         divider = QFrame()
         self.profile_divider = divider
         divider.setObjectName('CustomerDivider')
         divider.setFixedHeight(1)
         card.addWidget(divider)
         self.summary_panel = QWidget()
+        self.summary_panel.setObjectName('CustomerMetrics')
         summary = QGridLayout(self.summary_panel)
         summary.setContentsMargins(0, 0, 0, 0)
-        summary.setHorizontalSpacing(20)
+        summary.setHorizontalSpacing(22)
+        summary.setVerticalSpacing(4)
         self.summary = {}
-        for column, (key, caption) in enumerate((('jobs_completed', 'Completed jobs'),
-                ('last_job', 'Last completed'), ('next_due', 'Next due'))):
-            summary.addWidget(label(caption, 'CustomerCaption'), 0, column)
+        for column, (key, caption) in enumerate((('jobs_completed', 'COMPLETED JOBS'),
+                ('last_job', 'LAST COMPLETED'), ('next_due', 'NEXT DUE'))):
+            summary.addWidget(label(caption, 'CustomerMetricCaption'), 0, column)
             value = label('', 'CustomerMetric')
+            value.setWordWrap(False)
             summary.addWidget(value, 1, column)
             summary.setColumnStretch(column, 1)
             self.summary[key] = value
@@ -209,24 +290,25 @@ class CustomerPage(QWidget):
         jobs = QWidget()
         jobs.setObjectName('CustomerDetailPage')
         job_layout = QVBoxLayout(jobs)
-        job_layout.setContentsMargins(12, 10, 12, 10)
-        job_layout.setSpacing(8)
+        job_layout.setContentsMargins(12, 15, 12, 10)
+        job_layout.setSpacing(13)
         job_heading = QHBoxLayout()
-        captions = QHBoxLayout()
-        captions.setSpacing(12)
-        self.job_history_title = label('Job history', 'SectionTitle')
+        job_heading.setSpacing(10)
+        self.job_history_title = label('Job history', 'CustomerJobHeading')
         self.job_history_title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.job_history_title.setWordWrap(False)
-        captions.addWidget(self.job_history_title)
-        self.job_count = label('0 linked jobs', 'CustomerCaption')
+        job_heading.addWidget(self.job_history_title)
+        self.job_count = label('0 linked jobs', 'CustomerJobCount')
         self.job_count.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.job_count.setWordWrap(False)
-        captions.addWidget(self.job_count)
-        captions.addStretch()
-        job_heading.addLayout(captions, 1)
+        job_heading.addWidget(self.job_count)
+        job_heading.addStretch()
         self.edit_job_button = owner._button('Edit selected job', self.edit_selected_job)
+        self.edit_job_button.setObjectName('CustomerEditJobButton')
         job_heading.addWidget(self.edit_job_button)
         self.add_job_button = owner._button('Add job', lambda: owner.add_job(owner.selected_customer))
+        self.add_job_button.setObjectName('CustomerAddJobButton')
+        self.add_job_button.setProperty('role', 'primary')
         job_heading.addWidget(self.add_job_button)
         job_layout.addLayout(job_heading)
         self.history_empty = label('No jobs yet. Add a job for this customer.', 'CustomerEmpty')
@@ -237,14 +319,16 @@ class CustomerPage(QWidget):
         self.history.badge_columns = set()
         self.history.setItemDelegate(HistoryDelegate(self.history))
         self.history.setAlternatingRowColors(False)
-        self.history.verticalHeader().setDefaultSectionSize(48)
-        self.history.setMinimumHeight(138)
+        self.history.verticalHeader().setDefaultSectionSize(52)
+        self.history.setMinimumHeight(135)
         self.history.setMinimumWidth(0)
-        self.history.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.history.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.history.setShowGrid(False)
+        self.history.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.history.cellDoubleClicked.connect(owner.edit_history_job)
         self.history.itemSelectionChanged.connect(self.update_job_action)
-        job_layout.addWidget(self.history, 1)
+        job_layout.addWidget(self.history)
+        job_layout.addStretch(1)
         self.detail_tabs.addTab(jobs, 'Jobs')
         from .customer_services import CustomerServices
         self.services = CustomerServices(owner)
@@ -280,25 +364,26 @@ class CustomerPage(QWidget):
         details_card = QWidget()
         details_card.setObjectName('CustomerDetailsCard')
         details_layout = QVBoxLayout(details_card)
-        details_layout.setContentsMargins(12, 8, 12, 6)
+        details_layout.setContentsMargins(15, 10, 15, 12)
         details_layout.addWidget(self.detail_tabs)
         right.addWidget(details_card, 1)
         self.stack.addWidget(self.workspace)
         self.splitter.addWidget(self.stack)
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 1)
-        self.splitter.setSizes([290, 900])
+        self.splitter.setSizes([302, 930])
         layout.addWidget(self.splitter, 1)
         self.clear_customer()
 
     def _detail_tab_changed(self, index):
-        # Give services room on a small screen while keeping the customer's
-        # name, contact and address visible. Job metrics return on other tabs.
+        # Services gets more vertical room without losing the customer identity,
+        # address or contact information.
         compact = self.detail_tabs.widget(index) is self.services
         self.summary_panel.setVisible(not compact)
+        self.quick_info_panel.setVisible(not compact)
         self.profile_divider.setVisible(not compact)
-        self.overview_scroll.setMinimumHeight(164 if compact else 226)
-        self.overview_scroll.setMaximumHeight(190 if compact else 260)
+        self.overview_scroll.setMinimumHeight(155 if compact else 275)
+        self.overview_scroll.setMaximumHeight(205 if compact else 315)
 
     def set_customers(self, records, summaries, selected):
         table = self.customer_table
@@ -323,7 +408,7 @@ class CustomerPage(QWidget):
             item.setToolTip('\n'.join(f'{f.label}: {self.owner._field_value(customer, f, "customers")}'
                                     for f in browse_fields))
             table.setItem(row, 0, item)
-            table.setRowHeight(row, (table.fontMetrics().height() + 2) * len(lines) + 30)
+            table.setRowHeight(row, max(83, 43 + 17 * len(lines)))
             if customer['id'] == selected: selected_row = row
         if selected_row is not None: table.selectRow(selected_row)
         table.blockSignals(False)
@@ -351,6 +436,7 @@ class CustomerPage(QWidget):
         self.name.clear()
         self.contact.clear()
         self.status.clear()
+        for value in self.quick_info.values(): value.clear()
         for value in self.summary.values(): value.clear()
         self.job_count.setText('0 linked jobs')
         self.notes.clear()
@@ -375,6 +461,9 @@ class CustomerPage(QWidget):
         locality = ' '.join(customer[key] for key in ('suburb', 'state', 'postcode') if key in enabled and customer[key])
         self.profile.setText('\n'.join(part for part in (street, locality) if part) or 'Address not set')
         self.contact.setText('\n'.join(customer[key] for key in ('phone', 'email') if key in enabled and customer[key]) or 'Contact not set')
+        self.quick_info['suburb'].setText(customer['suburb'] or 'Not set')
+        self.quick_info['frequency'].setText(self.owner.frequency_text(customer))
+        self.quick_info['payment'].setText(customer['default_payment_type'] or 'Not set')
         self.summary['jobs_completed'].setText(str(summary['jobs_completed']))
         self.summary['last_job'].setText(self.date_text(summary['last_job']))
         self.summary['next_due'].setText(self.date_text(summary['next_due']))
@@ -397,10 +486,17 @@ class CustomerPage(QWidget):
         self.add_job_button.setEnabled(customer['active'])
         self.job_count.setText(f'{len(jobs)} linked job' + ('' if len(jobs) == 1 else 's'))
         self.owner._fill_table(self.history, jobs, 'jobs')
+        # Size history to its content (up to eight rows); a two-job customer
+        # should not be followed by a giant empty table. Larger histories scroll.
+        for row in range(len(jobs)):
+            self.history.setRowHeight(row, 52)
+        header_height = self.history.horizontalHeader().height()
+        self.history.setFixedHeight(max(135, min(8, len(jobs)) * 52 + header_height + 6))
         self.history.badge_columns = {index for index, field in enumerate(self.owner._columns('jobs'))
                                       if field.key in ('status', 'payment_status')}
         self.history.clearSelection()
         self.history_empty.setVisible(not jobs)
+        self.history.setVisible(bool(jobs))
         self.update_job_action()
 
     def update_job_action(self):
