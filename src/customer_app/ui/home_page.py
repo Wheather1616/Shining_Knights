@@ -1,8 +1,4 @@
-"""Shining Knights home dashboard: focused schedule and customer actions.
-
-This screen is deliberately presentational. Customer, job, recurrence and backup
-logic remain with the existing owner/database; no records are modified here.
-"""
+"""Shining Knights home dashboard: focused schedule and customer actions."""
 from __future__ import annotations
 
 from datetime import date
@@ -33,12 +29,10 @@ def short_date(value: str) -> str:
 
 
 class MetricIcon(QWidget):
-    """Small vector icon, drawn with Qt: no extra fonts or asset files required."""
-
     COLOURS = {
         'maroon': ('#F8EAE8', '#52050A'),
         'teal': ('#E6F4F6', '#258EA6'),
-        'coral': ('#FFF0EB', '#DA5949'),
+        'coral': ('#FFF0EB', '#F87666'),
     }
 
     def __init__(self, kind: str, tone: str = 'maroon', parent=None):
@@ -87,8 +81,6 @@ class MetricIcon(QWidget):
 
 
 class SummaryCard(QPushButton):
-    """One navigable metric. Whole card is an accessible click target."""
-
     def __init__(self, title: str, hint: str, kind: str, tone: str, handler):
         super().__init__()
         self.title = title
@@ -96,7 +88,7 @@ class SummaryCard(QPushButton):
         self.setProperty('tone', tone)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(126)
+        self.setFixedHeight(132)
 
         contents = QHBoxLayout(self)
         contents.setContentsMargins(20, 16, 18, 16)
@@ -105,6 +97,7 @@ class SummaryCard(QPushButton):
 
         text_col = QVBoxLayout()
         text_col.setSpacing(3)
+        text_col.setContentsMargins(0, 2, 0, 0)
         heading = label(title, 'HomeSummaryTitle')
         heading.setWordWrap(True)
         self.count = label('0', 'HomeSummaryCount')
@@ -112,6 +105,7 @@ class SummaryCard(QPushButton):
         for child in (heading, self.count, self.hint):
             child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
             text_col.addWidget(child)
+        text_col.addStretch(1)
         contents.addLayout(text_col, 1)
         arrow = label('›', 'HomeMetricArrow')
         arrow.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -137,8 +131,6 @@ class HomePage(QWidget):
         self._selected_job_id = None
         self._compact_mode = None
 
-        # main_window.py still updates this label during automatic backups.
-        # Keep the compatibility hook, but show the information in Settings only.
         self.backup_label = label('Backup status is available in Settings.', 'HomeHiddenBackup')
         self.backup_label.setParent(self)
         self.backup_label.hide()
@@ -158,10 +150,8 @@ class HomePage(QWidget):
         layout = QVBoxLayout(content)
         layout.setContentsMargins(28, 24, 28, 30)
         layout.setSpacing(18)
-        # QScrollArea requires its content widget's layout to exist first.
         self.page_scroll.setWidget(content)
 
-        # Page header: one primary action, with an unobtrusive customer action.
         heading = QHBoxLayout()
         heading.setSpacing(16)
         title_stack = QVBoxLayout()
@@ -191,7 +181,6 @@ class HomePage(QWidget):
             summaries.addWidget(card, 1)
         layout.addLayout(summaries)
 
-        # Preserve the operational warning only when a real overdue job exists.
         self.overdue_notice = QWidget()
         self.overdue_notice.setObjectName('HomeOverdueNotice')
         notice = QHBoxLayout(self.overdue_notice)
@@ -207,7 +196,6 @@ class HomePage(QWidget):
         self.body_grid.setHorizontalSpacing(16)
         self.body_grid.setVerticalSpacing(16)
 
-        # Upcoming jobs. Clicking selects a job in-place; double-clicking opens it.
         self.visits_card, visits = self._card()
         header = QHBoxLayout()
         header.addWidget(label('Upcoming jobs', 'HomeSectionTitle'), 1)
@@ -242,7 +230,6 @@ class HomePage(QWidget):
         self.visits_hint = label('', 'HomeFootnote', wrap=True)
         visits.addWidget(self.visits_hint)
 
-        # Inline preview, unlike the previous layout's empty lower half.
         self.details_card, details = self._card()
         detail_header = QHBoxLayout()
         detail_header.addWidget(label('Job details', 'HomeSectionTitle'), 1)
@@ -287,7 +274,6 @@ class HomePage(QWidget):
         self.details_content.hide()
         self.edit_job_button.setEnabled(False)
 
-        # Actionable recurrence queue, with preselected customer in JobDialog.
         self.bookings_card, bookings = self._card()
         booking_header = QHBoxLayout()
         booking_header.addWidget(label('Needs scheduling', 'HomeSectionTitle'), 1)
@@ -304,7 +290,6 @@ class HomePage(QWidget):
         self.bookings_scroll.setFixedHeight(96)
         bookings.addWidget(self.bookings_scroll)
 
-        # Small secondary shortcuts; backup information is no longer a dashboard footer.
         self.actions_card, actions = self._card()
         actions.addWidget(label('Quick actions', 'HomeSectionTitle'))
         actions.addWidget(self._action('Add customer', owner.add_customer, 'teal'))
@@ -347,7 +332,7 @@ class HomePage(QWidget):
             self.body_grid.removeWidget(widget)
         if compact:
             for row, widget in enumerate((self.visits_card, self.details_card,
-                                           self.bookings_card, self.actions_card)):
+                                          self.bookings_card, self.actions_card)):
                 self.body_grid.addWidget(widget, row, 0)
             self.body_grid.setColumnStretch(0, 1)
             self.body_grid.setColumnStretch(1, 0)
@@ -429,8 +414,6 @@ class HomePage(QWidget):
         self.detail_date.setText('Scheduled  ·  ' + date.fromisoformat(job['scheduled_date']).strftime('%a %d %b %Y'))
         self.detail_suburb.setText('Location  ·  ' + (job.get('suburb') or 'Suburb not set'))
         self.detail_service.setText('Service  ·  ' + self._service(job))
-        # The overview may contain only display fields. Fetch read-only job notes
-        # from the existing persistence API; never invent sample notes.
         try:
             full_job = self.owner.db.get_job(job['id'])
         except (LookupError, ValueError, KeyError):
@@ -518,4 +501,4 @@ class HomePage(QWidget):
         height = 64 if not rows else 10 + min(len(displayed), 4) * 98
         self.bookings_scroll.setFixedHeight(min(410, height))
         self.booking_list_button.setVisible(len(rows) > self.MAX_BOOKINGS)
-        self.booking_list_button.setText('Show fewer  ↑' if self.show_all_bookings else f'View all {len(rows)}  →')
+        self.booking_list_button.setText('Show first 4  →' if self.show_all_bookings else f'View all {len(rows)}  →')

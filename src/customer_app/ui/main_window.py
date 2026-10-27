@@ -129,6 +129,7 @@ class CustomerMainWindow(QMainWindow):
         # A Home link is an explicit filter change; stored filters must not hide its target.
         widgets = (page.search, page.status_filter, page.date_range, page.group_by)
         blockers = [QSignalBlocker(widget) for widget in widgets]
+        page.search_timer.stop()
         page.search.clear()
         page.status_filter.setCurrentText('Overdue' if kind == 'overdue' else 'Upcoming' if kind in ('today', 'next7') else 'All')
         page.date_range.setCurrentIndex(page.date_range.findData(kind if kind in ('today', 'next7') else 'all'))
@@ -251,7 +252,7 @@ class CustomerMainWindow(QMainWindow):
     def _filtered_jobs(self):
         label = self.job_filter.currentText()
         grouping = self.group_by.currentData()
-        jobs = self.db.list_jobs(status=label if label in JOB_STATUSES else '',include_deleted=label == 'Trash',group_by='date' if grouping == 'completed' else grouping,search=self.job_search.text())
+        jobs = self.db.list_jobs(status=label if label in JOB_STATUSES else '',include_deleted=label == 'Trash',group_by='date' if grouping in ('completed', 'none') else grouping,search=self.job_search.text())
         if label == 'Trash': jobs = [j for j in jobs if j['deleted_at']]
         if label in ('Upcoming','Overdue'): jobs = [j for j in jobs if j['status'] in ('Scheduled','In progress')]
         if label == 'Overdue': jobs = [j for j in jobs if j['scheduled_date'] and j['scheduled_date'] < date.today().isoformat()]

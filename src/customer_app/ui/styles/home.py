@@ -1,4 +1,4 @@
-"""Modern, tightly scoped QSS for the Shining Knights dashboard."""
+"""Refined QSS for the Shining Knights dashboard."""
 from .tokens import themed
 
 HOME_QSS = themed(r'''
@@ -6,7 +6,7 @@ QScrollArea#HomePageScroll, QWidget#HomeDashboardContent {
     background: @canvas@; border: none;
 }
 QLabel#HomeEyebrow {
-    color: #AE605F; font-family: @font_body@; font-size: 11px;
+    color: #C86467; font-family: @font_body@; font-size: 12px;
     font-weight: 700;
 }
 QLabel#HomeTitle {
@@ -16,6 +16,7 @@ QLabel#HomeDate { color: @text_muted@; font-size: 13px; }
 QPushButton#HomeSummaryCard {
     background: #FFF6F4; border: 1px solid #F1DEDA;
     border-radius: 18px; padding: 0; text-align: left;
+    min-height: 132px; max-height: 132px;
 }
 QPushButton#HomeSummaryCard[tone="teal"] {
     background: #F2FBFC; border-color: #D6EBED;
@@ -28,7 +29,7 @@ QPushButton#HomeSummaryCard[tone="teal"]:hover { border-color: @cyan@; }
 QPushButton#HomeSummaryCard[tone="coral"]:hover { border-color: @coral@; }
 QPushButton#HomeSummaryCard:focus { border: 2px solid @cyan@; }
 QLabel#HomeSummaryTitle {
-    color: @text@; font-family: @font_body@; font-size: 15px; font-weight: 600;
+    color: @text@; font-family: @font_body@; font-size: 15px; font-weight: 700;
 }
 QLabel#HomeSummaryCount {
     color: @bordeaux@; font-family: @font_regular@; font-size: 36px;
@@ -36,7 +37,7 @@ QLabel#HomeSummaryCount {
 QLabel#HomeSummaryHint { color: @text_muted@; font-size: 12px; }
 QLabel#HomeMetricArrow { color: @bordeaux@; font-size: 26px; }
 QWidget#HomeContentCard {
-    background: @surface@; border: 1px solid @border@; border-radius: 17px;
+    background: @surface@; border: 1px solid @border@; border-radius: 18px;
 }
 QLabel#HomeSectionTitle {
     color: @bordeaux@; font-family: @font_regular@; font-size: 23px;
@@ -55,9 +56,7 @@ QTableWidget#HomeVisits {
 QTableWidget#HomeVisits::item {
     padding: 10px 12px; border: none; border-bottom: 1px solid @border@;
 }
-QTableWidget#HomeVisits::item:hover {
-    background: #F4FBFC;
-}
+QTableWidget#HomeVisits::item:hover { background: #F4FBFC; }
 QTableWidget#HomeVisits::item:selected, QTableWidget#HomeVisits::item:selected:!active {
     background: #E9F5F7; color: @text@;
 }
@@ -68,11 +67,11 @@ QTableWidget#HomeVisits QHeaderView::section {
 }
 QWidget#HomeDetailsContent { background: transparent; border: none; }
 QLabel#HomeDetailName {
-    color: @text@; font-family: @font_body@; font-size: 20px; font-weight: 600;
+    color: @text@; font-family: @font_body@; font-size: 20px; font-weight: 700;
 }
 QLabel#HomeDetailLine { color: @text_muted@; font-size: 13px; }
 QLabel#HomeDetailCaption {
-    color: @text_muted@; font-size: 11px; font-weight: 600;
+    color: @text_muted@; font-size: 11px; font-weight: 700;
 }
 QLabel#HomeDetailNotes { color: @text@; font-size: 13px; }
 QFrame#HomeDetailDivider { color: @border@; border: none; background: @border@; max-width: 1px; }
@@ -82,7 +81,7 @@ QScrollArea#HomeBookingsScroll, QWidget#HomeBookingContent {
 QWidget#HomeBookingEntry { background: @surface@; border: none; }
 QFrame#HomeBookingDivider { background: @border@; border: none; }
 QPushButton#HomeCustomerLink {
-    color: @text@; font-family: @font_body@; font-weight: 600;
+    color: @text@; font-family: @font_body@; font-weight: 700;
     font-size: 14px; min-height: 18px; padding: 0;
     background: transparent; border: none; text-align: left;
 }
@@ -97,10 +96,10 @@ QLabel#HomeDueBadge[overdue="true"] {
     background: #F9DED9; color: #84271C;
 }
 QPushButton#HomeQuickAction {
-    min-height: 38px; text-align: left;
+    min-height: 42px; text-align: left;
     background: #F9ECE9; color: @bordeaux@;
-    border: 1px solid transparent; border-radius: 9px;
-    padding: 7px 15px; font-family: @font_body@; font-size: 13px;
+    border: 1px solid transparent; border-radius: 10px;
+    padding: 8px 15px; font-family: @font_body@; font-size: 13px;
 }
 QPushButton#HomeQuickAction[tone="teal"] {
     background: #EAF7F9; color: #176478;

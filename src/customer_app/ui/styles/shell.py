@@ -1,4 +1,4 @@
-"""Shining Knights shell: warm, horizontal navigation with a soft active state."""
+"""Shining Knights shell styling with clearer active navigation."""
 from .tokens import themed
 
 SHELL_QSS = themed(r'''
@@ -25,9 +25,14 @@ QPushButton#AppNavigation {
 QPushButton#AppNavigation:hover { background: @surface_soft@; color: @bordeaux_mid@; }
 QPushButton#AppNavigation:checked {
     background: #F9EAE8; color: @bordeaux@; border-color: #F3DAD8;
-    font-weight: 600;
+    font-weight: 700;
 }
-QPushButton#AppNavigation:focus { border-color: @cyan@; }
+QPushButton#AppNavigation:checked:focus {
+    background: #F9EAE8; color: @bordeaux@; border: 1px solid #F3DAD8;
+}
+QPushButton#AppNavigation:focus {
+    border-color: @cyan@;
+}
 QTabWidget#AppTabs::pane { border: none; }
 QTabWidget::pane {
     background: @canvas@; border: 1px solid @border@;

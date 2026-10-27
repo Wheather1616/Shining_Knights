@@ -4,15 +4,17 @@ from dataclasses import asdict
 from datetime import date, datetime
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QAbstractSpinBox, QCheckBox, QDialog, QDialogButtonBox, QFormLayout,
-    QLabel, QLineEdit, QMessageBox, QScrollArea, QVBoxLayout, QWidget)
+    QLabel, QLineEdit, QMessageBox, QScrollArea, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QLayout, QSizePolicy)
 
 from ..config import CORE_FIELDS
-from .form_controls import ChoiceGrid, WorkTypeGrid, ClickComboBox, DateInput, IntervalSpinBox, NumericInput
+from .form_controls import ChoiceGrid, WorkTypeGrid, ClickComboBox, DateInput, IntervalSpinBox, NumericInput, SearchCustomerCombo, GroupedWorkTypeGrid
+from .form_sections import SectionCard, SelectionDisclosure
 from ..models import CustomerRecord, JobRecord, ValidationError, job_types
 
 class RecordForm(QWidget):
+    """Keep original field widgets/data contract; only restructure presentation."""
     def __init__(self, settings, entity: str, values: dict[str, Any], parent=None):
         super().__init__(parent)
         self.setObjectName('RecordForm')
@@ -20,12 +22,14 @@ class RecordForm(QWidget):
         self.definitions = settings.fields_for(entity)
         self.widgets = {}
         self.original_custom = dict(values.get('custom_fields') or {})
-        self.layout_form = QFormLayout(self)
-        self.layout_form.setContentsMargins(18, 18, 18, 18)
-        self.layout_form.setHorizontalSpacing(16)
-        self.layout_form.setVerticalSpacing(12)
-        self.layout_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-        self.layout_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.sections = {}
+        self._definitions = {f.key: f for f in self.definitions}
+        self.layout_cards = QVBoxLayout(self)
+        self.layout_cards.setContentsMargins(4, 4, 4, 10)
+        self.layout_cards.setSpacing(12)
+        # Keep the scroll widget's minimum height in sync with every accordion.
+        self.layout_cards.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
         for f in self.definitions:
             if not f.enabled or (entity == 'customers' and f.key == 'name') or (entity == 'jobs' and f.key == 'service_name'):
                 continue
@@ -53,14 +57,16 @@ class RecordForm(QWidget):
                         w.addItem(str(value) + ' (saved choice)', value)
                     w.setCurrentIndex(max(0, w.findData(value or '')))
             elif f.field_type == 'multiselect':
-                if f.key in ('default_job_type','job_type'):
-                    w = WorkTypeGrid(f.options,job_types(value),values.get(f.key + '_sides', {}),empty_text='No job types available. Add them in Settings.')
+                if f.key in ('default_job_type', 'job_type'):
+                    w = GroupedWorkTypeGrid(f.options, job_types(value), values.get(f.key + '_sides', {}),
+                                     empty_text='No job types available. Add them in Settings.')
                 else:
                     w = ChoiceGrid(f.options, value or [])
             elif f.field_type == 'textarea':
                 from PySide6.QtWidgets import QPlainTextEdit
                 w = QPlainTextEdit()
-                w.setMaximumHeight(100)
+                w.setMaximumHeight(110)
+                w.setPlaceholderText('Add useful information or access instructions…')
                 w.setPlainText(str(value or ''))
             elif f.field_type == 'date':
                 w = DateInput(value or '')
@@ -72,7 +78,8 @@ class RecordForm(QWidget):
                 w.setPlaceholderText('e.g. 1.5')
             elif f.key in ('phone', 'postcode') and entity == 'customers':
                 import re
-                w = NumericInput(r'[0-9]{0,15}' if f.key == 'phone' else r'[0-9]{0,4}', re.sub(r'[^0-9]', '', str(value or '')))
+                w = NumericInput(r'[0-9]{0,15}' if f.key == 'phone' else r'[0-9]{0,4}',
+                                 re.sub(r'[^0-9]', '', str(value or '')))
                 w.setPlaceholderText('10–15 digits' if f.key == 'phone' else '4 digits')
             else:
                 w = QLineEdit('' if value is None else str(value))
@@ -88,91 +95,107 @@ class RecordForm(QWidget):
             self._frequency_changed(self.widgets['frequency_value'].value())
         else:
             self._job_rows()
+        self.layout_cards.addStretch()
 
-    def _section(self, text):
-        heading = QLabel(text)
-        heading.setObjectName('FormSectionTitle')
-        self.layout_form.addRow(heading)
+    def _section(self, key, title, subtitle='', symbol='✦', *, expanded=True, collapsible=False):
+        card = SectionCard(title, subtitle, symbol, expanded=expanded, collapsible=collapsible)
+        self.sections[key] = card
+        self.layout_cards.addWidget(card)
+        return card
 
-    def _pair(self, keys):
-        from PySide6.QtWidgets import QGridLayout
-        container = QWidget()
-        layout = QGridLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setHorizontalSpacing(14)
-        layout.setVerticalSpacing(4)
-        for column, key in enumerate(keys):
-            f = next(f for f in self.definitions if f.key == key)
-            caption = QLabel(f.label + (' *' if key == 'first_name' else ''))
-            caption.setObjectName('FormHelper')
-            caption.setTextFormat(Qt.TextFormat.PlainText)
-            caption.setWordWrap(True)
-            caption.setBuddy(self.widgets[key])
-            layout.addWidget(caption, 0, column)
-            layout.addWidget(self.widgets[key], 1, column)
-            layout.setColumnStretch(column, 1)
-        return container
+    def _caption(self, key):
+        definition = self._definitions[key]
+        return definition.label + (' *' if definition.required or key == 'first_name' else '')
 
-    def _row(self, key):
-        f = next(f for f in self.definitions if f.key == key)
-        if f.enabled:
-            self.layout_form.addRow(f.label + (' *' if f.required else ''), self.widgets[key])
+    def _row(self, card, key):
+        if key in self.widgets and self._definitions[key].enabled:
+            card.add_field(self._caption(key), self.widgets[key])
+
+    def _pair(self, card, *keys):
+        valid = [key for key in keys if key in self.widgets and self._definitions[key].enabled]
+        if len(valid) == 1:
+            self._row(card, valid[0])
+        elif valid:
+            card.add_pair(*[(self._caption(key), self.widgets[key]) for key in valid])
+
+    def _choices(self, card, key, title, *, expanded=False):
+        if key in self.widgets and self._definitions[key].enabled:
+            disclosure = SelectionDisclosure(title, self.widgets[key], expanded=expanded)
+            card.add_widget(disclosure)
 
     def _customer_rows(self, legacy_name):
-        from PySide6.QtWidgets import QHBoxLayout
-        self._section('Contact details')
-        self.layout_form.addRow('Customer name', self._pair(('first_name', 'last_name')))
+        contact = self._section('contact', 'Contact details', 'Who we are working with and how to reach them.', '♙')
+        self._pair(contact, 'first_name', 'last_name')
         if legacy_name:
-            hint = QLabel('Existing full name kept above. Separate first and last names if needed.')
-            hint.setObjectName('FormHelper')
-            hint.setWordWrap(True)
-            self.layout_form.addRow(hint)
-        for key in ('business_name', 'phone', 'email'):
-            self._row(key)
-        self._section('Service address')
-        for key in ('address_line_1', 'address_line_2', 'suburb', 'state', 'postcode'):
-            self._row(key)
-        self._section('Service setup')
-        interval = QWidget()
-        row = QHBoxLayout(interval)
+            contact.add_hint('Existing full name retained. You can separate first and last names above.')
+        self._row(contact, 'business_name')
+        self._pair(contact, 'phone', 'email')
+
+        address = self._section('address', 'Service address', 'Where the work will be carried out.', '⌖')
+        self._pair(address, 'address_line_1', 'address_line_2')
+        self._pair(address, 'suburb', 'state', 'postcode')
+
+        rhythm = self._section('rhythm', 'Service rhythm', 'Set the recurrence for future bookings.', '▦')
+        frequency = QWidget()
+        frequency.setObjectName('FormFieldRow')
+        row = QHBoxLayout(frequency)
         row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
         row.addWidget(self.widgets['frequency_value'], 1)
-        row.addWidget(self.widgets['frequency_unit'], 1)
-        self.layout_form.addRow('Service frequency', interval)
+        row.addWidget(self.widgets['frequency_unit'], 2)
+        rhythm.add_field('Service frequency', frequency)
         self.frequency_hint = QLabel()
-        self.frequency_hint.setObjectName('FormHelper')
-        self.layout_form.addRow('', self.frequency_hint)
-        self._row('first_service_date')
-        self._section('Usual service defaults')
-        hint = QLabel('These are the defaults for the usual service. Add other named services in the customer’s Services tab after saving.')
-        hint.setObjectName('FormHelper'); hint.setWordWrap(True); self.layout_form.addRow(hint)
-        for key in ('default_job_type', 'default_equipment'):
-            self._row(key)
-        self.layout_form.addRow('Service charge', self._pair(('default_fee', 'default_hours')))
-        hint = QLabel('Fee is the total charge. Hours are optional and do not change the fee.')
-        hint.setObjectName('FormHelper')
-        hint.setWordWrap(True)
-        self.layout_form.addRow('', hint)
-        self._row('default_payment_type')
-        self._section('Notes & extra information')
-        self._row('notes')
-        self._row('active')
+        self.frequency_hint.setObjectName('FormFieldHint')
+        self.frequency_hint.setWordWrap(True)
+        rhythm.add_widget(self.frequency_hint)
+        self._row(rhythm, 'first_service_date')
+
+        defaults = self._section('defaults', 'Usual service defaults',
+                                 'Saved defaults for new visits. Edit named services in the Services tab.',
+                                 '⚙', expanded=False, collapsible=True)
+        self._choices(defaults, 'default_job_type', 'Nature of job', expanded=False)
+        self._choices(defaults, 'default_equipment', 'Equipment required', expanded=False)
+        self._pair(defaults, 'default_fee', 'default_hours')
+        self._row(defaults, 'default_payment_type')
+        defaults.add_hint('Fee is the total charge. Hours are optional and do not change the fee.')
+
+        extra = self._section('extra', 'Notes & extra information', 'Optional details and custom fields.',
+                              '✎', expanded=False, collapsible=True)
+        self._row(extra, 'notes')
+        self._row(extra, 'active')
         for f in self.definitions:
             if f.key not in CORE_FIELDS['customers'] and f.enabled:
-                self._row(f.key)
+                self._row(extra, f.key)
 
     def _job_rows(self):
-        for f in self.definitions:
-            if not f.enabled or f.key in ('hours','service_name'):
-                continue
-            if f.key == 'fee':
-                self.layout_form.addRow('Service charge', self._pair(('fee', 'hours')))
-            else:
-                self._row(f.key)
+        overview = self._section('overview', 'Job overview', 'Schedule and track this visit.', '▦')
+        self._pair(overview, 'scheduled_date', 'completed_date')
+        self._row(overview, 'status')
+        details = self._section('details', 'Service details', 'What work is included in this visit.', '✦')
+        self._choices(details, 'job_type', 'Nature of job', expanded=False)
+        self._choices(details, 'equipment', 'Equipment required', expanded=False)
+        pricing = self._section('pricing', 'Pricing & payment', 'Set the charge and payment details.', '$')
+        self._pair(pricing, 'fee', 'hours')
+        self._pair(pricing, 'payment_type', 'payment_status')
+        pricing.add_hint('Hours are optional; they do not change the total fee.')
+        notes = self._section('notes', 'Notes', 'Access details and any special instructions.', '✎',
+                              expanded=False, collapsible=True)
+        self._row(notes, 'notes')
+        # Preserve user-configured fields without guessing at their meaning.
+        more = [f.key for f in self.definitions if f.enabled and f.key not in CORE_FIELDS['jobs']]
+        additional = [key for key in self.widgets if key not in (
+            'scheduled_date', 'completed_date', 'status', 'job_type', 'equipment', 'fee',
+            'hours', 'payment_type', 'payment_status', 'notes')]
+        if additional:
+            other = self._section('other', 'Additional job details', 'Configured fields.', '⋯',
+                                  expanded=False, collapsible=True)
+            for key in additional:
+                self._row(other, key)
 
     def _frequency_changed(self, value):
         self.widgets['frequency_unit'].setEnabled(value > 0)
-        self.frequency_hint.setText('0 means one-off / as needed.' if value == 0 else 'Repeat after this many days, weeks, months or years.')
+        self.frequency_hint.setText('0 means one-off / as needed.' if value == 0
+                                    else 'Repeat after this many days, weeks, months or years.')
 
     def values(self) -> dict[str, Any]:
         result = {'custom_fields': dict(self.original_custom)}
@@ -221,6 +244,7 @@ class CustomerDialog(QDialog):
     def __init__(self, db, settings, customer_id=None, parent=None):
         super().__init__(parent)
         self.db, self.customer_id = db, customer_id
+        self.setObjectName('RecordDialog')
         self.saved_id = None
         self.setWindowTitle('Edit customer' if customer_id else 'Add customer')
         self.resize(760,780)
@@ -235,8 +259,11 @@ class CustomerDialog(QDialog):
         self.form = RecordForm(settings,'customers',c)
         scroll = QScrollArea(); scroll.setObjectName('RecordScroll')
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setWidget(self.form)
-        outer.addWidget(scroll)
+        outer.addWidget(scroll, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Save).setProperty('role','primary')
         buttons.accepted.connect(self.save)
@@ -255,60 +282,111 @@ class CustomerDialog(QDialog):
         self.accept()
 
 class JobDialog(QDialog):
+    """Job editor with a single scroll region and an explicit customer picker."""
     def __init__(self, db, settings, customer_id=None, job_id=None, parent=None):
         super().__init__(parent)
         self.db, self.settings, self.job_id = db, settings, job_id
         self.saved_id = None
         self.setWindowTitle('Edit job' if job_id else 'Add job')
-        self.resize(610,730)
+        self.setObjectName('RecordDialog')
+        self.resize(800, 800)
+        self.setMinimumSize(610, 550)
         self.outer = QVBoxLayout(self)
-        self.outer.setContentsMargins(20,18,20,18); self.outer.setSpacing(14)
-        title = QLabel(self.windowTitle()); title.setObjectName('PageTitle'); self.outer.addWidget(title)
-        self.customer = ClickComboBox()
-        self.outer.addWidget(QLabel('Customer'))
-        self.outer.addWidget(self.customer)
+        self.outer.setContentsMargins(20, 18, 20, 14)
+        self.outer.setSpacing(10)
+        title = QLabel(self.windowTitle())
+        title.setObjectName('PageTitle')
+        self.outer.addWidget(title)
+
+        # One scroll area for the entire form, rather than fixed sections above
+        # a second tiny viewport. The Save/Cancel bar alone stays in place.
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName('RecordScroll')
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_content = QWidget()
+        self.scroll_content.setObjectName('JobFormScrollContent')
+        self.content_layout = QVBoxLayout(self.scroll_content)
+        self.content_layout.setContentsMargins(4, 6, 8, 12)
+        self.content_layout.setSpacing(12)
+        self.content_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        self.scroll.setWidget(self.scroll_content)
+        self.outer.addWidget(self.scroll, 1)
+
         customers = db.list_customers(include_inactive=bool(job_id))
-        for c in customers: self.customer.addItem(c['name'] + (' (inactive)' if not c['active'] else ''),c['id'])
+        self.customer_records = {c['id']: c for c in customers}
+        customer_card = SectionCard('Customer', 'Find an existing customer by name, suburb or phone.', '♙', tone='coral')
+        self.customer = SearchCustomerCombo()
+        self.customer.setAccessibleName('Search for customer')
+        for c in customers:
+            parts = [c['name'], c.get('suburb') or '', c.get('phone') or '']
+            caption = '  ·  '.join(v for v in parts if v)
+            if not c['active']:
+                caption += ' (inactive)'
+            self.customer.addItem(caption, c['id'])
+        customer_card.add_field('Customer *', self.customer)
+        self.customer_preview = QLabel('Select a customer to see their location and contact details.')
+        self.customer_preview.setObjectName('FormLookupPreview')
+        self.customer_preview.setWordWrap(True)
+        customer_card.add_widget(self.customer_preview)
+        self.content_layout.addWidget(customer_card)
+
         if job_id:
             values = db.get_job(job_id)
-            self.customer.setCurrentIndex(self.customer.findData(values['customer_id']))
+            self.customer.select_customer(values['customer_id'])
             self.customer.setEnabled(False)
         else:
-            if customer_id is not None: self.customer.setCurrentIndex(self.customer.findData(customer_id))
-            selected = self.customer.currentData()
-            values = asdict(db.new_job_for_customer(selected)) if selected is not None else asdict(JobRecord(0))
+            self.customer.select_customer(customer_id)
+            selected = self.customer.valid_customer_id()
+            values = (asdict(db.new_job_for_customer(selected)) if selected is not None
+                      else asdict(JobRecord(0)))
+        self._update_customer_preview()
+        service_card = SectionCard('Saved service', 'Choose a service to load its normal charge, hours and equipment.', '✦', tone='teal')
         self.service = ClickComboBox()
         self.service.setAccessibleName('Customer service')
-        self.outer.addWidget(QLabel('Service'))
-        self.outer.addWidget(self.service)
-        self.service_hint = QLabel('Choosing a service fills its fee, hours and equipment. Adjust them below for this visit.')
+        service_card.add_field('Service', self.service)
+        self.service_hint = QLabel('Choosing a saved service fills its fee, hours and equipment. You can adjust them below.')
         if job_id:
-            self.service_hint.setText('This job keeps its saved details. Choosing another service replaces its fee, hours and equipment.')
-        self.service_hint.setObjectName('FormHelper'); self.service_hint.setWordWrap(True); self.outer.addWidget(self.service_hint)
+            self.service_hint.setText('This job keeps its saved details. Choosing another service replaces its defaults.')
+        self.service_hint.setObjectName('FormFieldHint')
+        self.service_hint.setWordWrap(True)
+        service_card.add_widget(self.service_hint)
+        self.content_layout.addWidget(service_card)
         self._load_services(values)
         self.service.currentIndexChanged.connect(self._service_changed)
-        self.scroll = QScrollArea(); self.scroll.setObjectName('RecordScroll')
-        self.scroll.setWidgetResizable(True)
-        self.outer.addWidget(self.scroll)
         self._set_form(values)
-        self.customer.currentIndexChanged.connect(self._customer_changed)
+        # Confirmation is explicit; typing a partial customer name does not
+        # silently change or overwrite unfinished job values.
+        self.customer.selectionConfirmed.connect(self._customer_changed)
+        self.customer.selectionCleared.connect(self._customer_search_cleared)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Save).setProperty('role','primary')
+        buttons.button(QDialogButtonBox.StandardButton.Save).setProperty('role', 'primary')
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
         self.outer.addWidget(buttons)
 
     def _set_form(self, values):
-        self.form = RecordForm(self.settings,'jobs',values)
-        self.scroll.setWidget(self.form)
+        old = getattr(self, 'form', None)
+        if old is not None:
+            self.content_layout.removeWidget(old)
+            old.hide()
+            old.deleteLater()
+        self.form = RecordForm(self.settings, 'jobs', values)
+        self.content_layout.addWidget(self.form)
         self.form.widgets['status'].currentIndexChanged.connect(self._status_changed)
+        self.scroll_content.updateGeometry()
 
     def _load_services(self, values):
         self.service.blockSignals(True)
         self.service.clear()
         self.service.addItem('Custom visit / no saved service', None)
         selected = values.get('service_id')
-        for record in self.db.list_services(self.customer.currentData(),include_archived=bool(self.job_id)):
+        cid = self.customer.valid_customer_id()
+        records = self.db.list_services(cid, include_archived=bool(self.job_id)) if cid is not None else []
+        for record in records:
             if not record['active'] and record['id'] != selected:
                 continue
             text = record['name'] + (' · Usual' if record['is_default'] else '') + (' (archived)' if not record['active'] else '')
@@ -320,7 +398,8 @@ class JobDialog(QDialog):
         self.service.blockSignals(False)
         self._selected_service_id = selected
         self._service_name = values.get('service_name','')
-        customer = self.db.get_customer(self.customer.currentData()) if self.customer.currentData() else None
+        cid = self.customer.valid_customer_id()
+        customer = self.db.get_customer(cid) if cid is not None else None
         self.service.setEnabled(bool(customer and customer['active']))
         original = self.db.get_service(selected) if selected else None
         self._profile_notes = original['notes'] if original else ''
@@ -334,7 +413,7 @@ class JobDialog(QDialog):
             self._service_name = ''
             return
         try:
-            values = asdict(self.db.new_job_for_customer(self.customer.currentData(),service_id=selected))
+            values = asdict(self.db.new_job_for_customer(self.customer.valid_customer_id(), service_id=selected))
         except ValidationError as exc:
             QMessageBox.warning(self,'Service could not be selected',str(exc))
             self.service.blockSignals(True)
@@ -350,19 +429,40 @@ class JobDialog(QDialog):
         for option,checkbox in self.form.widgets['equipment'].checkboxes.items():
             checkbox.setChecked(option in values['equipment'])
         for key in ('fee','hours'):
-            self.form.widgets[key].setText(values[key] or '')
+            self.form.widgets[key].setText(str(values[key]) if values[key] is not None else '')
         notes = self.form.widgets['notes']
         if not notes.toPlainText().strip() or notes.toPlainText().strip() == self._profile_notes:
             notes.setPlainText(values['notes'])
         self._profile_notes = values['notes']
         self._service_name = values['service_name']
 
-    def _customer_changed(self):
-        if self.job_id: return
-        if self.customer.currentData() is not None:
-            values = asdict(self.db.new_job_for_customer(self.customer.currentData()))
+    def _customer_changed(self, _confirmed_customer_id=None):
+        if self.job_id:
+            return
+        self._update_customer_preview()
+        cid = self.customer.valid_customer_id()
+        if cid is not None:
+            values = asdict(self.db.new_job_for_customer(cid))
             self._load_services(values)
             self._set_form(values)
+            self.scroll_content.updateGeometry()
+
+    def _customer_search_cleared(self):
+        # Keep unsaved fields untouched while searching for a different record.
+        # A new selection will deliberately load that customer's defaults.
+        self.service.setEnabled(False)
+        self.customer_preview.setText('Choose a result from the customer list to continue.')
+
+    def _update_customer_preview(self):
+        cid = self.customer.valid_customer_id()
+        record = self.customer_records.get(cid)
+        if record:
+            address = ', '.join(str(record.get(key) or '') for key in ('address_line_1', 'suburb')
+                                if record.get(key))
+            self.customer_preview.setText('⌖  ' + (address or 'Address not set') +
+                                          ('     ·     ' + str(record.get('phone')) if record.get('phone') else ''))
+        else:
+            self.customer_preview.setText('Select a customer to see their location and contact details.')
 
     def _status_changed(self):
         status = self.form.widgets['status'].currentData()
@@ -372,8 +472,8 @@ class JobDialog(QDialog):
 
     def save(self):
         try:
-            selected = self.customer.currentData()
-            if selected is None: raise ValidationError('Add an active customer before creating a job.')
+            selected = self.customer.valid_customer_id()
+            if selected is None: raise ValidationError('Select a customer from the search results before saving.')
             record = JobRecord(customer_id=selected, service_id=self.service.currentData(), service_name=self._service_name, **self.form.values())
             if self.job_id:
                 self.db.update_job(self.job_id,record)

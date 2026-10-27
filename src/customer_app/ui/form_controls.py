@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QRegularExpression, Qt
+from PySide6.QtCore import QDate, QRegularExpression, Qt, Signal
 from PySide6.QtGui import QIcon, QRegularExpressionValidator
 from PySide6.QtWidgets import (QCalendarWidget, QCheckBox, QComboBox, QFrame,
     QButtonGroup, QPushButton, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QSizePolicy, QSpinBox, QVBoxLayout, QWidget)
@@ -90,45 +90,119 @@ class DateInput(QLineEdit):
             super().keyPressEvent(event)
 
 
-class ChoiceLabel(QLabel):
-    def __init__(self, text, checkbox):
-        super().__init__(text)
-        self.checkbox = checkbox
-        self.setTextFormat(Qt.TextFormat.PlainText)
-        self.setWordWrap(True)
-        self.setMinimumWidth(0)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+class SearchCustomerCombo(ClickComboBox):
+    """Explicit, searchable picker. Typing never silently chooses a customer.
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.checkbox.toggle()
-            event.accept()
+    Completing or clicking a matching result confirms an actual ID. An empty
+    picker has an empty line edit so placeholder text never becomes user input.
+    """
+    selectionConfirmed = Signal(object)
+    selectionCleared = Signal()
+
+    def __init__(self, parent=None):
+        from PySide6.QtWidgets import QCompleter
+        super().__init__(parent)
+        self._confirmed_id = None
+        self._confirmed_caption = ''
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.setObjectName('CustomerLookup')
+        self.setMaxVisibleItems(12)
+        self.lineEdit().setPlaceholderText('Search by name, suburb or phone…')
+        self.lineEdit().setClearButtonEnabled(True)
+        self.lineEdit().textEdited.connect(self._editing)
+        self.activated[int].connect(self._activated)
+        completer = QCompleter(self.model(), self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.setCompleter(completer)
+        completer.activated[str].connect(self._completed)
+
+    def _editing(self, text):
+        if text != self._confirmed_caption and self._confirmed_id is not None:
+            self._confirmed_id = None
+            self._confirmed_caption = ''
+            self.selectionCleared.emit()
+
+    def _activated(self, index):
+        self._confirm(index)
+
+    def _completed(self, value):
+        # QCompleter can supply a string or QModelIndex on supported Qt builds.
+        caption = value.data() if hasattr(value, 'data') else str(value)
+        index = self.findText(caption, Qt.MatchFlag.MatchExactly)
+        if index >= 0:
+            self._confirm(index)
+
+    def _confirm(self, index):
+        if index < 0 or self.itemData(index) is None:
+            return
+        cid = self.itemData(index)
+        was_confirmed = self._confirmed_id == cid and self._confirmed_caption == self.itemText(index)
+        self.blockSignals(True)
+        self.setCurrentIndex(index)
+        self.lineEdit().setText(self.itemText(index))
+        self.blockSignals(False)
+        self._confirmed_id = cid
+        self._confirmed_caption = self.itemText(index)
+        if not was_confirmed:
+            self.selectionConfirmed.emit(cid)
+
+    def select_customer(self, customer_id, *, emit=False):
+        index = self.findData(customer_id) if customer_id is not None else -1
+        self.blockSignals(True)
+        self.setCurrentIndex(index)
+        if index < 0:
+            self.lineEdit().clear()
+            self._confirmed_id = None
+            self._confirmed_caption = ''
         else:
-            super().mousePressEvent(event)
+            self.lineEdit().setText(self.itemText(index))
+            self._confirmed_id = customer_id
+            self._confirmed_caption = self.itemText(index)
+        self.blockSignals(False)
+        if emit and self._confirmed_id is not None:
+            self.selectionConfirmed.emit(self._confirmed_id)
+
+    def valid_customer_id(self):
+        if self._confirmed_id is None:
+            return None
+        index = self.findData(self._confirmed_id)
+        if index < 0 or self.lineEdit().text().strip() != self.itemText(index):
+            return None
+        return self._confirmed_id
 
 
 class ChoiceGrid(QWidget):
-    """All equipment choices in a wrapping grid, without an inner scroll area."""
-    def __init__(self, options, selected=(), parent=None, *, empty_text="No equipment choices. Add them in Settings."):
+    """Accessible, selectable multi-choice chips, rather than giant checkbox lists.
+
+    Checkbox state and .checkboxes are preserved for the caller and for
+    service-switching code. Items created in Settings remain selectable.
+    """
+    def __init__(self, options, selected=(), parent=None, *, empty_text='No equipment choices. Add them in Settings.'):
         super().__init__(parent)
+        self.setObjectName('ChoiceGrid')
         self.grid = QGridLayout(self)
-        self.grid.setContentsMargins(0, 2, 0, 2)
-        self.grid.setHorizontalSpacing(16)
-        self.grid.setVerticalSpacing(10)
+        self.grid.setContentsMargins(0, 3, 0, 3)
+        self.grid.setHorizontalSpacing(9)
+        self.grid.setVerticalSpacing(9)
         self.checkboxes = {}
         self.entries = []
         self._columns = 0
         for option in dict.fromkeys([*options, *selected]):
-            checkbox = QCheckBox()
+            checkbox = QCheckBox(str(option))
+            checkbox.setObjectName('ChoiceChip')
             checkbox.setChecked(option in selected)
-            checkbox.setAccessibleName(option)
-            checkbox.setToolTip(option)
+            checkbox.setAccessibleName(str(option))
+            checkbox.setToolTip(str(option))
+            checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
             entry = QWidget()
-            row = QHBoxLayout(entry)
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(8)
-            row.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignTop)
-            row.addWidget(ChoiceLabel(option, checkbox), 1)
+            entry.setObjectName('ChoiceChipEntry')
+            col = QVBoxLayout(entry)
+            col.setContentsMargins(0, 0, 0, 0)
+            col.setSpacing(6)
+            col.addWidget(checkbox)
             self.entries.append(entry)
             self.checkboxes[option] = checkbox
         self.empty_label = QLabel(empty_text) if not self.entries else None
@@ -151,7 +225,8 @@ class ChoiceGrid(QWidget):
         self.updateGeometry()
 
     def resizeEvent(self, event):
-        self._reflow(3 if self.width() >= 660 else 2 if self.width() >= 340 else 1)
+        # Let the available form width determine columns rather than fixed rows.
+        self._reflow(3 if self.width() >= 750 else 2 if self.width() >= 440 else 1)
         super().resizeEvent(event)
 
     def selected_values(self):
@@ -159,7 +234,7 @@ class ChoiceGrid(QWidget):
 
 
 class WorkTypeGrid(ChoiceGrid):
-    """Tick work types, then choose the side beneath each selected type."""
+    """Work chips with independent inside / outside / both segmented controls."""
     def __init__(self, options, selected=(), sides=None, parent=None, **kwargs):
         super().__init__(options, selected, parent, **kwargs)
         self.side_buttons = {}
@@ -167,17 +242,6 @@ class WorkTypeGrid(ChoiceGrid):
         self.side_groups = {}
         for option, entry in zip(self.checkboxes, self.entries):
             checkbox = self.checkboxes[option]
-            row = entry.layout()
-            # Retain the existing label/tick row, with its side control below.
-            heading = QWidget()
-            heading.setLayout(row)
-            column = QVBoxLayout(entry)
-            column.setContentsMargins(0, 0, 0, 0)
-            column.setSpacing(6)
-            column.addWidget(heading)
-            below = QHBoxLayout()
-            below.setContentsMargins(0, 0, 0, 0)
-            below.addSpacing(26)
             frame = QFrame()
             frame.setObjectName('WorkSideSelector')
             frame.setAccessibleName(f'{option}: inside, outside or both')
@@ -198,9 +262,7 @@ class WorkTypeGrid(ChoiceGrid):
                 group.addButton(button)
                 segments.addWidget(button, 1)
                 buttons[side] = button
-            below.addWidget(frame, 1)
-            column.addLayout(below)
-            column.addStretch()
+            entry.layout().addWidget(frame)
             frame.setVisible(checkbox.isChecked())
             checkbox.toggled.connect(frame.setVisible)
             self.side_buttons[option] = buttons
@@ -209,7 +271,6 @@ class WorkTypeGrid(ChoiceGrid):
         self.set_sides(sides or {})
 
     def set_sides(self, sides):
-        # Replacing a selected service must also clear the previous side choices.
         for option, group in self.side_groups.items():
             group.setExclusive(False)
             for side, button in self.side_buttons[option].items():
@@ -219,3 +280,78 @@ class WorkTypeGrid(ChoiceGrid):
     def selected_sides(self):
         return {option: side for option in self.selected_values()
                 for side, button in self.side_buttons[option].items() if button.isChecked()}
+
+
+class GroupedWorkTypeGrid(QWidget):
+    """Categorise configured work types visually without changing stored values.
+
+    Unrecognised custom types always remain available in 'Other services'.
+    """
+    GROUPS = ('Windows & glass', 'Exterior cleaning', 'Doors & other', 'Commercial', 'Other services')
+
+    @staticmethod
+    def classify(name):
+        name = name.casefold()
+        if any(term in name for term in ('commercial', 'shop front', 'common area', 'front facade')):
+            return 'Commercial'
+        if any(term in name for term in ('door', 'tracks', 'louvres', 'louvers', 'fans')):
+            return 'Doors & other'
+        if any(term in name for term in ('pressure', 'gutter', 'roof', 'solar', 'fence', 'balustrade', 'pool')):
+            return 'Exterior cleaning'
+        if any(term in name for term in ('window', 'glass', 'screen', 'mirror', 'skylight', 'flyscreen', 'awning')):
+            return 'Windows & glass'
+        return 'Other services'
+
+    def __init__(self, options, selected=(), sides=None, parent=None, **kwargs):
+        super().__init__(parent)
+        self.setObjectName('GroupedWorkTypes')
+        self._options = list(dict.fromkeys([*options, *selected]))
+        self._groups = {}
+        self.checkboxes = {}
+        layout = QGridLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setHorizontalSpacing(10)
+        layout.setVerticalSpacing(10)
+        buckets = {key: [] for key in self.GROUPS}
+        for name in self._options:
+            buckets[self.classify(str(name))].append(name)
+        col = 0
+        row = 0
+        for title in self.GROUPS:
+            if not buckets[title]:
+                continue
+            card = QFrame()
+            card.setObjectName('WorkCategoryCard')
+            vbox = QVBoxLayout(card)
+            vbox.setContentsMargins(11, 11, 11, 11)
+            vbox.setSpacing(7)
+            heading = QLabel(title)
+            heading.setObjectName('WorkCategoryTitle')
+            vbox.addWidget(heading)
+            grid = WorkTypeGrid(buckets[title], [item for item in selected if item in buckets[title]], sides or {},
+                                empty_text=kwargs.get('empty_text', 'No work types configured.'))
+            vbox.addWidget(grid)
+            self._groups[title] = grid
+            self.checkboxes.update(grid.checkboxes)
+            layout.addWidget(card, row, col)
+            col += 1
+            if col == 2:
+                col = 0
+                row += 1
+        if not self._groups:
+            empty = QLabel(kwargs.get('empty_text', 'No work types configured.'))
+            empty.setWordWrap(True)
+            layout.addWidget(empty, 0, 0)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
+
+    def selected_values(self):
+        return [item for item in self._options if self.checkboxes[item].isChecked()]
+
+    def selected_sides(self):
+        return {key: value for group in self._groups.values()
+                for key, value in group.selected_sides().items()}
+
+    def set_sides(self, sides):
+        for group in self._groups.values():
+            group.set_sides(sides)
